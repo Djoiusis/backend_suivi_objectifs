@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Consultant {
+  id       Int      @id @default(autoincrement())
+  username String  @unique
+  password String
+  objectifs Objectif[]
+}
+
+model Objectif {
+  id            Int       @id @default(autoincrement())
+  description   String
+  status        String   @default("En cours")
+  consultant    Consultant @relation(fields: [consultantId], references: [id])
+  consultantId  Int
+  validatedByAdmin Boolean @default(false)
+}
