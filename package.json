@@ -9,15 +9,16 @@
     "migrate": "npx prisma migrate deploy"
   },
   "dependencies": {
-    "express": "^4.17.1",
-    "cors": "^2.8.5",
-    "body-parser": "^1.19.0",
-    "dotenv": "^16.0.0",
-    "jsonwebtoken": "^9.0.0",
+    "@prisma/client": "^6.5.0",
     "bcrypt": "^5.1.0",
-    "@prisma/client": "^4.8.0"
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.17.1",
+    "jsonwebtoken": "^9.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.0"
+    "nodemon": "^3.0.0",
+    "prisma": "^6.5.0"
   }
 }
