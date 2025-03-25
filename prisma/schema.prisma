@@ -7,22 +7,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-model Objectif {
-  id            Int       @id @default(autoincrement())
-  description   String
-  status        String   @default("En cours")
-  consultant    Consultant @relation(fields: [consultantId], references: [id])
-  consultantId  Int
-  validatedByAdmin Boolean @default(false)
-}
-
 model User {
   id        Int        @id @default(autoincrement())
   username  String     @unique
   password  String
   role      Role       @default(CONSULTANT)
   objectifs Objectif[]
+}
+
+model Objectif {
+  id               Int     @id @default(autoincrement())
+  description      String
+  status           String  @default("En cours")
+  validatedByAdmin Boolean @default(false)
+  user             User    @relation(fields: [userId], references: [id])
+  userId           Int
 }
 
 enum Role {
