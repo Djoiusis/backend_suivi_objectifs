@@ -7,34 +7,33 @@ require('dotenv').config();
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Inscription d'un consultant (par un admin)
 router.post('/register', async (req, res) => {
-    const { username, password } = req.body;
+  const { username, password, role } = req.body;
 
+  try {
+    // Vérifie si l'utilisateur existe déjà
+    const existingUser = await prisma.user.findUnique({ where: { username } });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Utilisateur déjà existant' });
+    }
+
+    // Hacher le mot de passe
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    try {
-        const consultant = await prisma.consultant.create({
-            data: { username, password: hashedPassword }
-        });
-        res.json(consultant);
-    } catch (error) {
-        res.status(400).json({ error: 'Utilisateur déjà existant' });
-    }
-});
+    // Créer le nouvel utilisateur
+    const user = await prisma.user.create({
+      data: {
+        username,
+        password: hashedPassword,
+        role: role || 'CONSULTANT', // 👈 Par défaut
+      },
+    });
 
-// Connexion
-router.post('/login', async (req, res) => {
-    const { username, password } = req.body;
-
-    const consultant = await prisma.consultant.findUnique({ where: { username } });
-    if (!consultant) return res.status(401).json({ error: 'Utilisateur non trouvé' });
-
-    const validPassword = await bcrypt.compare(password, consultant.password);
-    if (!validPassword) return res.status(401).json({ error: 'Mot de passe incorrect' });
-
-    const token = jwt.sign({ userId: consultant.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.json({ token });
+    res.status(201).json({ message: 'Utilisateur créé', user: { id: user.id, username: user.username, role: user.role } });
+  } catch (error) {
+    console.error('Erreur création utilisateur:', error);
+    res.status(500).json({ error: "Erreur lors de la création de l'utilisateur" });
+  }
 });
 
 module.exports = router;
