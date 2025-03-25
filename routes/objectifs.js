@@ -41,3 +41,16 @@ router.put('/:id', async (req, res) => {
         res.status(400).json({ error: "Impossible de mettre à jour l'objectif" });
     }
 });
+const express = require('express');
+const { PrismaClient } = require('@prisma/client');
+
+const router = express.Router();
+const prisma = new PrismaClient();
+
+// Exemple de route
+router.get('/', async (req, res) => {
+    const objectifs = await prisma.objectif.findMany();
+    res.json(objectifs);
+});
+
+module.exports = router; // ✅ OBLIGATOIRE
