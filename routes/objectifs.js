@@ -60,18 +60,21 @@ router.get('/mine', verifyToken, async (req, res) => {
 
 
 // 🔒 Mettre à jour le statut d’un objectif (consultant ou admin)
-router.put('/:id', verifyToken, async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
+router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
+  const objectifId = parseInt(req.params.id);
+
   try {
     const objectif = await prisma.objectif.update({
-      where: { id: parseInt(id) },
-      data: { status }
+      where: { id: objectifId },
+      data: {
+        validatedbyadmin: true
+      }
     });
-    res.json(objectif);
+
+    res.json({ message: 'Objectif validé avec succès', objectif });
   } catch (error) {
-    res.status(400).json({ error: "Impossible de mettre à jour l'objectif" });
+    console.error("💥 Erreur validation objectif :", error);
+    res.status(400).json({ error: "Impossible de valider l'objectif" });
   }
 });
-
 module.exports = router;
