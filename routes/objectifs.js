@@ -26,7 +26,7 @@ router.post('/', verifyToken, async (req, res) => {
     const objectif = await prisma.objectif.create({
       data: {
         description,
-        userId: req.user.userId, // pris depuis le token
+        userid: req.user.userid, // pris depuis le token
       },
     });
     res.status(201).json(objectif);
@@ -41,7 +41,7 @@ router.get('/mine', verifyToken, async (req, res) => {
   try {
     const objectifs = await prisma.objectif.findMany({
       where: {
-        userId: req.user.userId
+        userid: req.user.userid
       }
     });
     res.json(objectifs);
