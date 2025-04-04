@@ -37,6 +37,7 @@ router.post('/', verifyToken, async (req, res) => {
 
 // Voir les objectifs de l'utilisateur connecté
 router.get('/mine', verifyToken, async (req, res) => {
+  console.log('🔐 Utilisateur connecté :', req.user);
   try {
     const objectifs = await prisma.objectif.findMany({
       where: {
@@ -45,6 +46,7 @@ router.get('/mine', verifyToken, async (req, res) => {
     });
     res.json(objectifs);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "Erreur lors de la récupération des objectifs personnels" });
   }
 });
