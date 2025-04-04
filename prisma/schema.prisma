@@ -20,7 +20,7 @@ model Objectif {
   description      String
   status           String  @default("En cours")
   validatedbyadmin Boolean @default(false)
-  user             User    @relation(fields: [userId], references: [id])
+  user             User    @relation(fields: [userid], references: [id])
   userid           Int
 }
 
