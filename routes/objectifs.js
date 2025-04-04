@@ -27,7 +27,7 @@ router.post('/', verifyToken, async (req, res) => {
     const objectif = await prisma.objectif.create({
       data: {
         description,
-        userId: req.user.userId // 👈 attention : le champ exact doit exister
+        userid: req.user.userid // 👈 attention : le champ exact doit exister
       }
     });
     res.status(201).json(objectif);
