@@ -21,7 +21,7 @@ model Objectif {
   status           String  @default("En cours")
   validatedbyadmin Boolean @default(false)
   user             User    @relation(fields: [userId], references: [id])
-  userId           Int
+  userid           Int
 }
 
 enum Role {
