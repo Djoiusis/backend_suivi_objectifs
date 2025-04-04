@@ -35,6 +35,21 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
+// Voir les objectifs de l'utilisateur connecté
+router.get('/mine', verifyToken, async (req, res) => {
+  try {
+    const objectifs = await prisma.objectif.findMany({
+      where: {
+        userId: req.user.userId
+      }
+    });
+    res.json(objectifs);
+  } catch (error) {
+    res.status(500).json({ error: "Erreur lors de la récupération des objectifs personnels" });
+  }
+});
+
+
 // 🔒 Mettre à jour le statut d’un objectif (consultant ou admin)
 router.put('/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
