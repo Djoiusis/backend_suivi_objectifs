@@ -22,18 +22,21 @@ router.get('/', verifyToken, requireAdmin, async (req, res) => {
 // 🔒 Ajouter un objectif (consultant connecté)
 router.post('/', verifyToken, async (req, res) => {
   const { description } = req.body;
+
   try {
     const objectif = await prisma.objectif.create({
       data: {
         description,
-        userid: req.user.userid, // pris depuis le token
-      },
+        userId: req.user.userId // 👈 attention : le champ exact doit exister
+      }
     });
     res.status(201).json(objectif);
   } catch (error) {
+    console.error("💥 ERREUR CRÉATION OBJECTIF:", error);
     res.status(400).json({ error: "Impossible de créer l'objectif" });
   }
 });
+
 
 // Voir les objectifs de l'utilisateur connecté
 router.get('/mine', verifyToken, async (req, res) => {
