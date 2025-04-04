@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const authRoutes = require('./routes/auth');
-const consultantRoutes = require('./routes/users');
+const userRoutes = require('./routes/users');
 const objectifsRoutes = require('./routes/objectifs');
 const { PrismaClient } = require('@prisma/client');
 require('dotenv').config();
@@ -17,7 +17,7 @@ app.use(bodyParser.json());
 
 // Routes
 app.use('/auth', authRoutes);
-app.use('/consultants', consultantRoutes);
+app.use('/users', userRoutes);
 app.use('/objectifs', objectifsRoutes);
 
 // Test de connexion à la base de données
