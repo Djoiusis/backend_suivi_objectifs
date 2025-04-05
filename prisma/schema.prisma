@@ -20,7 +20,7 @@ model Objectif {
   description      String
   status           String  @default("En cours")
   validatedbyadmin Boolean @default(false)
-  commentaires Commentaire[]
+  commentaires     Commentaire[]
   user             User    @relation(fields: [userid], references: [id])
   userid           Int
 }
