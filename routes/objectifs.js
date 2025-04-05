@@ -155,5 +155,61 @@ router.patch('/:id', verifyToken, async (req, res) => {
   }
 });
 
+// 🔒 Admin : créer un objectif pour un utilisateur donné
+router.post('/admin', verifyToken, requireAdmin, async (req, res) => {
+  const { description, userId } = req.body;
+
+  if (!description || !userId) {
+    return res.status(400).json({ error: "Champs 'description' et 'userId' requis" });
+  }
+
+  try {
+    const objectif = await prisma.objectif.create({
+      data: {
+        description,
+        status: "En cours",
+        validatedbyadmin: false,
+        user: {
+          connect: { id: parseInt(userId) }
+        }
+      }
+    });
+    res.status(201).json({ message: "Objectif créé pour le user", objectif });
+  } catch (error) {
+    console.error("💥 Erreur création objectif admin :", error);
+    res.status(400).json({ error: "Impossible de créer l'objectif" });
+  }
+});
+
+// 🔒 Admin : créer un objectif pour plusieurs utilisateurs
+router.post('/admin/multiple', verifyToken, requireAdmin, async (req, res) => {
+  const { description, userIds } = req.body;
+
+  if (!description || !Array.isArray(userIds) || userIds.length === 0) {
+    return res.status(400).json({ error: "Champs 'description' et 'userIds[]' requis" });
+  }
+
+  try {
+    const objectifs = await Promise.all(
+      userIds.map(userId =>
+        prisma.objectif.create({
+          data: {
+            description,
+            status: "En cours",
+            validatedbyadmin: false,
+            user: { connect: { id: parseInt(userId) } }
+          }
+        })
+      )
+    );
+
+    res.status(201).json({ message: "Objectifs créés pour les utilisateurs", objectifs });
+  } catch (error) {
+    console.error("💥 Erreur création multiple :", error);
+    res.status(400).json({ error: "Erreur création des objectifs" });
+  }
+});
+
+
 
 module.exports = router;
