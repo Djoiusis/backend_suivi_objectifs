@@ -73,22 +73,45 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
-router.patch('/:id/commentaire', verifyToken, async (req, res) => {
+router.post('/:id/commentaires', verifyToken, async (req, res) => {
   const objectifId = parseInt(req.params.id);
-  const { commentaire } = req.body;
+  const { contenu } = req.body;
 
   try {
-    const objectif = await prisma.objectif.update({
-      where: { id: objectifId },
-      data: { commentaire }
+    const commentaire = await prisma.commentaire.create({
+      data: {
+        contenu,
+        objectif: { connect: { id: objectifId } },
+        user: { connect: { id: req.user.userId } }
+      }
     });
 
-    res.json({ message: 'Commentaire ajouté', objectif });
+    res.status(201).json({ message: 'Commentaire ajouté', commentaire });
   } catch (error) {
-    console.error('💥 Erreur ajout commentaire :', error);
+    console.error('💥 Erreur ajout commentaire multiple :', error);
     res.status(400).json({ error: "Impossible d'ajouter le commentaire" });
   }
 });
+
+router.get('/:id/commentaires', verifyToken, async (req, res) => {
+  const objectifId = parseInt(req.params.id);
+
+  try {
+    const commentaires = await prisma.commentaire.findMany({
+      where: { objectifId },
+      include: {
+        user: { select: { username: true, role: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(commentaires);
+  } catch (error) {
+    console.error('💥 Erreur récupération commentaires :', error);
+    res.status(500).json({ error: "Impossible de récupérer les commentaires" });
+  }
+});
+
 
 // 🔒 Mettre à jour le statut d’un objectif (consultant ou admin)
 router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
