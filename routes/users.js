@@ -42,4 +42,18 @@ router.post('/', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
+// 🔒 Supprimer un utilisateur (admin uniquement)
+router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  try {
+    await prisma.user.delete({
+      where: { id: userId }
+    });
+    res.json({ message: "Utilisateur supprimé avec succès" });
+  } catch (error) {
+    console.error("💥 Erreur suppression user :", error);
+    res.status(400).json({ error: "Impossible de supprimer l'utilisateur" });
+  }
+});
+
 module.exports = router;
