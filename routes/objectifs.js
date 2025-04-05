@@ -58,6 +58,37 @@ router.get('/mine', verifyToken, async (req, res) => {
   }
 });
 
+router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
+  const objectifId = parseInt(req.params.id);
+
+  try {
+    await prisma.objectif.delete({
+      where: { id: objectifId }
+    });
+
+    res.json({ message: 'Objectif supprimé avec succès' });
+  } catch (error) {
+    console.error("💥 Erreur suppression objectif :", error);
+    res.status(400).json({ error: "Impossible de supprimer l'objectif" });
+  }
+});
+
+router.patch('/:id/commentaire', verifyToken, async (req, res) => {
+  const objectifId = parseInt(req.params.id);
+  const { commentaire } = req.body;
+
+  try {
+    const objectif = await prisma.objectif.update({
+      where: { id: objectifId },
+      data: { commentaire }
+    });
+
+    res.json({ message: 'Commentaire ajouté', objectif });
+  } catch (error) {
+    console.error('💥 Erreur ajout commentaire :', error);
+    res.status(400).json({ error: "Impossible d'ajouter le commentaire" });
+  }
+});
 
 // 🔒 Mettre à jour le statut d’un objectif (consultant ou admin)
 router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
