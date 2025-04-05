@@ -133,4 +133,27 @@ router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
+// 🔒 Modifier le statut d’un objectif (consultant ou admin)
+router.patch('/:id/status', verifyToken, async (req, res) => {
+  const objectifId = parseInt(req.params.id);
+  const { status } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ error: "Le champ 'status' est requis" });
+  }
+
+  try {
+    const updated = await prisma.objectif.update({
+      where: { id: objectifId },
+      data: { status }
+    });
+
+    res.json({ message: 'Statut mis à jour avec succès', objectif: updated });
+  } catch (error) {
+    console.error('💥 Erreur mise à jour statut objectif :', error);
+    res.status(400).json({ error: "Impossible de modifier le statut" });
+  }
+});
+
+
 module.exports = router;
