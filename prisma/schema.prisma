@@ -32,8 +32,8 @@ model Commentaire {
   createdAt  DateTime  @default(now())
   objectif   Objectif  @relation(fields: [objectifId], references: [id])
   objectifId Int
-  user       User      @relation(fields: [userId], references: [id])
-  userId     Int
+  user       User      @relation(fields: [userid], references: [id])
+  userid     Int
 }
 
 enum Role {
