@@ -30,7 +30,7 @@ router.post('/', verifyToken, async (req, res) => {
         status: "En cours",
         validatedbyadmin: false,
         user: {
-          connect: { id: req.user.userId }
+          connect: { id: req.user.userid }
         }
       }
     });
@@ -82,7 +82,7 @@ router.post('/:id/commentaires', verifyToken, async (req, res) => {
       data: {
         contenu,
         objectif: { connect: { id: objectifId } },
-        user: { connect: { id: req.user.userId } }
+        user: { connect: { id: req.user.userid } }
       }
     });
 
