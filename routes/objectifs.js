@@ -133,25 +133,25 @@ router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
-// 🔒 Modifier le statut d’un objectif (consultant ou admin)
-router.patch('/:id/status', verifyToken, async (req, res) => {
-  const objectifId = parseInt(req.params.id);
+// 🔒 Mettre à jour uniquement le statut d’un objectif (consultant ou admin)
+router.patch('/:id', verifyToken, async (req, res) => {
+  const { id } = req.params;
   const { status } = req.body;
 
   if (!status) {
-    return res.status(400).json({ error: "Le champ 'status' est requis" });
+    return res.status(400).json({ error: "Champ 'status' requis" });
   }
 
   try {
-    const updated = await prisma.objectif.update({
-      where: { id: objectifId },
+    const objectif = await prisma.objectif.update({
+      where: { id: parseInt(id) },
       data: { status }
     });
 
-    res.json({ message: 'Statut mis à jour avec succès', objectif: updated });
+    res.json({ message: 'Statut mis à jour', objectif });
   } catch (error) {
-    console.error('💥 Erreur mise à jour statut objectif :', error);
-    res.status(400).json({ error: "Impossible de modifier le statut" });
+    console.error("Erreur update statut:", error);
+    res.status(404).json({ error: "Objectif introuvable ou erreur serveur" });
   }
 });
 
