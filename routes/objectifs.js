@@ -19,6 +19,31 @@ router.get('/', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
+// 🔒 Admin : Voir les objectifs d’un utilisateur spécifique
+router.get('/:userId', verifyToken, requireAdmin, async (req, res) => {
+  const userId = parseInt(req.params.userId);
+
+  try {
+    const objectifs = await prisma.objectif.findMany({
+      where: { userid: userId },
+      include: {
+        commentaires: {
+          include: {
+            user: { select: { username: true, role: true } }
+          },
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+
+    res.json(objectifs);
+  } catch (error) {
+    console.error("💥 Erreur récupération objectifs user :", error);
+    res.status(500).json({ error: "Impossible de récupérer les objectifs de l'utilisateur" });
+  }
+});
+
+
 // 🔒 Ajouter un objectif (consultant connecté)
 router.post('/', verifyToken, async (req, res) => {
   const { description } = req.body;
