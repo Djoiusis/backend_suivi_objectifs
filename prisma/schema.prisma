@@ -12,8 +12,8 @@ model User {
   username  String     @unique
   password  String
   role      Role       @default(CONSULTANT)
-  commentaires Commentaire[]
-  objectifs Objectif[]
+  commentaires Commentaire[] @relation(onDelete: CASCADE)
+  objectifs    Objectif[]    @relation(onDelete: CASCADE)
 }
 
 model Objectif {
