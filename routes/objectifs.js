@@ -8,6 +8,22 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 
+// Voir les objectifs de l'utilisateur connecté
+router.get('/mine', verifyToken, async (req, res) => {
+  console.log('🔐 Utilisateur connecté :', req.user);
+  try {
+    const objectifs = await prisma.objectif.findMany({
+      where: {
+        userid: req.user.userid
+      }
+    });
+    res.json(objectifs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erreur lors de la récupération des objectifs personnels" });
+  }
+});
+
 // 🔒 Admin : Voir les objectifs d’un utilisateur spécifique
 router.get('/:userId', verifyToken, async (req, res) => {
   const userId = parseInt(req.params.userId);
@@ -56,21 +72,7 @@ router.post('/', verifyToken, async (req, res) => {
 });
 
 
-// Voir les objectifs de l'utilisateur connecté
-router.get('/mine', verifyToken, async (req, res) => {
-  console.log('🔐 Utilisateur connecté :', req.user);
-  try {
-    const objectifs = await prisma.objectif.findMany({
-      where: {
-        userid: req.user.userid
-      }
-    });
-    res.json(objectifs);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Erreur lors de la récupération des objectifs personnels" });
-  }
-});
+
 
 router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
   const objectifId = parseInt(req.params.id);
