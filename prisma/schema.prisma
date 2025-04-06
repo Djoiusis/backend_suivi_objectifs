@@ -22,7 +22,7 @@ model Objectif {
   status           String  @default("En cours")
   validatedbyadmin Boolean @default(false)
   commentaires     Commentaire[]
-  user            User      @relation(fields: [userid], references: [id], onDelete: cascade)
+  user            User      @relation(fields: [userid], references: [id], onDelete: Cascade)
   userid           Int
 }
 
@@ -30,9 +30,9 @@ model Commentaire {
   id         Int       @id @default(autoincrement())
   contenu    String
   createdAt  DateTime  @default(now())
-  objectif    Objectif  @relation(fields: [objectifId], references: [id], onDelete: cascade)
+  objectif    Objectif  @relation(fields: [objectifId], references: [id], onDelete: Cascade)
   objectifId Int
-  user        User      @relation(fields: [userid], references: [id], onDelete: cascade)
+  user        User      @relation(fields: [userid], references: [id], onDelete: Cascade)
   userid     Int
 }
 
