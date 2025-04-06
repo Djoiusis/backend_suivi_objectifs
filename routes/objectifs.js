@@ -7,17 +7,6 @@ const requireAdmin = require('../middlewares/requireAdmin');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// 🔒 Récupérer tous les objectifs (admin only)
-router.get('/', verifyToken, requireAdmin, async (req, res) => {
-  try {
-    const objectifs = await prisma.objectif.findMany({
-      include: { user: { select: { username: true, role: true } } }
-    });
-    res.json(objectifs);
-  } catch (error) {
-    res.status(500).json({ error: "Erreur lors de la récupération des objectifs" });
-  }
-});
 
 // 🔒 Admin : Voir les objectifs d’un utilisateur spécifique
 router.get('/:userId', verifyToken, requireAdmin, async (req, res) => {
