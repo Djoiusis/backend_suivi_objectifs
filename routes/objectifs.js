@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 
 
 // 🔒 Admin : Voir les objectifs d’un utilisateur spécifique
-router.get('/:userId', verifyToken, requireAdmin, async (req, res) => {
+router.get('/:userId', verifyToken, async (req, res) => {
   const userId = parseInt(req.params.userId);
 
   try {
