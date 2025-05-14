@@ -8,13 +8,16 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 
-// Voir les objectifs de l'utilisateur connecté
-router.get('/mine', verifyToken, async (req, res) => {
+// Voir les objectifs de l'utilisateur connecté avec filtre par année
+router.get('/mine/:annee?', verifyToken, async (req, res) => {
   console.log('🔐 Utilisateur connecté :', req.user);
+  const annee = req.params.annee ? parseInt(req.params.annee) : new Date().getFullYear();
+  
   try {
     const objectifs = await prisma.objectif.findMany({
       where: {
-        userid: req.user.userid
+        userid: req.user.userid,
+        annee: annee
       }
     });
     res.json(objectifs);
@@ -24,13 +27,17 @@ router.get('/mine', verifyToken, async (req, res) => {
   }
 });
 
-// 🔒 Admin : Voir les objectifs d’un utilisateur spécifique
-router.get('/:userId', verifyToken, async (req, res) => {
+// 🔒 Admin : Voir les objectifs d'un utilisateur spécifique avec filtre par année
+router.get('/:userId/:annee?', verifyToken, async (req, res) => {
   const userId = parseInt(req.params.userId);
+  const annee = req.params.annee ? parseInt(req.params.annee) : new Date().getFullYear();
 
   try {
     const objectifs = await prisma.objectif.findMany({
-      where: { userid: userId },
+      where: { 
+        userid: userId,
+        annee: annee 
+      },
       include: {
         commentaires: {
           include: {
@@ -49,9 +56,10 @@ router.get('/:userId', verifyToken, async (req, res) => {
 });
 
 
-// 🔒 Ajouter un objectif (consultant connecté)
+// 🔒 Ajouter un objectif (consultant connecté) avec année
 router.post('/', verifyToken, async (req, res) => {
-  const { description } = req.body;
+  const { description, annee } = req.body;
+  const currentYear = new Date().getFullYear();
 
   try {
     const objectif = await prisma.objectif.create({
@@ -59,6 +67,7 @@ router.post('/', verifyToken, async (req, res) => {
         description,
         status: "En cours",
         validatedbyadmin: false,
+        annee: annee || currentYear,
         user: {
           connect: { id: req.user.userid }
         }
@@ -129,7 +138,7 @@ router.get('/:id/commentaires', verifyToken, async (req, res) => {
 });
 
 
-// 🔒 Mettre à jour le statut d’un objectif (consultant ou admin)
+// 🔒 Mettre à jour le statut d'un objectif (consultant ou admin)
 router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
   const objectifId = parseInt(req.params.id);
 
@@ -149,7 +158,7 @@ router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
-// 🔒 Mettre à jour uniquement le statut d’un objectif (consultant ou admin)
+// 🔒 Mettre à jour uniquement le statut d'un objectif (consultant ou admin)
 router.patch('/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -171,9 +180,10 @@ router.patch('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// 🔒 Admin : créer un objectif pour un utilisateur donné
+// 🔒 Admin : créer un objectif pour un utilisateur donné avec année
 router.post('/admin', verifyToken, requireAdmin, async (req, res) => {
-  const { description, userId } = req.body;
+  const { description, userId, annee } = req.body;
+  const currentYear = new Date().getFullYear();
 
   if (!description || !userId) {
     return res.status(400).json({ error: "Champs 'description' et 'userId' requis" });
@@ -185,6 +195,7 @@ router.post('/admin', verifyToken, requireAdmin, async (req, res) => {
         description,
         status: "En cours",
         validatedbyadmin: false,
+        annee: annee || currentYear,
         user: {
           connect: { id: parseInt(userId) }
         }
@@ -197,9 +208,10 @@ router.post('/admin', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
-// 🔒 Admin : créer un objectif pour plusieurs utilisateurs
+// 🔒 Admin : créer un objectif pour plusieurs utilisateurs avec année
 router.post('/admin/multiple', verifyToken, requireAdmin, async (req, res) => {
-  const { description, userIds } = req.body;
+  const { description, userIds, annee } = req.body;
+  const currentYear = new Date().getFullYear();
 
   if (!description || !Array.isArray(userIds) || userIds.length === 0) {
     return res.status(400).json({ error: "Champs 'description' et 'userIds[]' requis" });
@@ -213,6 +225,7 @@ router.post('/admin/multiple', verifyToken, requireAdmin, async (req, res) => {
             description,
             status: "En cours",
             validatedbyadmin: false,
+            annee: annee || currentYear,
             user: { connect: { id: parseInt(userId) } }
           }
         })
