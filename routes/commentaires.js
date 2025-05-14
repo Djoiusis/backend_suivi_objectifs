@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const authenticateToken = require('../middleware/authenticateToken'); // Assurez-vous que ce chemin est correct
+const verifyToken = require('../middlewares/verifyToken'); // Utilisation de votre middleware existant
 
 // Récupérer tous les commentaires d'un objectif
-router.get('/:objectifId/commentaires', authenticateToken, async (req, res) => {
+router.get('/:objectifId/commentaires', verifyToken, async (req, res) => {
   try {
     const { objectifId } = req.params;
     
@@ -35,7 +35,7 @@ router.get('/:objectifId/commentaires', authenticateToken, async (req, res) => {
 });
 
 // Ajouter un commentaire à un objectif
-router.post('/:objectifId/commentaires', authenticateToken, async (req, res) => {
+router.post('/:objectifId/commentaires', verifyToken, async (req, res) => {
   try {
     const { objectifId } = req.params;
     const { contenu } = req.body;
@@ -84,7 +84,7 @@ router.post('/:objectifId/commentaires', authenticateToken, async (req, res) => 
 });
 
 // Modifier un commentaire
-router.put('/commentaire/:id', authenticateToken, async (req, res) => {
+router.put('/commentaire/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { contenu } = req.body;
@@ -131,7 +131,7 @@ router.put('/commentaire/:id', authenticateToken, async (req, res) => {
 });
 
 // Supprimer un commentaire
-router.delete('/commentaire/:id', authenticateToken, async (req, res) => {
+router.delete('/commentaire/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
