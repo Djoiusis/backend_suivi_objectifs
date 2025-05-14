@@ -84,7 +84,7 @@ router.post('/:objectifId/commentaires', verifyToken, async (req, res) => {
 });
 
 // Modifier un commentaire
-router.put('/commentaire/:id', verifyToken, async (req, res) => {
+router.put('/objectifs/commentaire/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { contenu } = req.body;
