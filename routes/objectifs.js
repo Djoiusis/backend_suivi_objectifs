@@ -16,7 +16,7 @@ router.get('/mine/:annee?', verifyToken, async (req, res) => {
   try {
     const objectifs = await prisma.objectif.findMany({
       where: {
-        userid: req.user.userid,
+        userid: req.user.id || req.user.userid,
         annee: annee
       }
     });
@@ -60,6 +60,11 @@ router.get('/:userId/:annee?', verifyToken, async (req, res) => {
 router.post('/', verifyToken, async (req, res) => {
   const { description, annee } = req.body;
   const currentYear = new Date().getFullYear();
+  const userId = req.user.id || req.user.userid;
+
+  if (!userId) {
+    return res.status(403).json({ error: "Utilisateur non identifié correctement" });
+  }
 
   try {
     const objectif = await prisma.objectif.create({
@@ -69,7 +74,7 @@ router.post('/', verifyToken, async (req, res) => {
         validatedbyadmin: false,
         annee: annee || currentYear,
         user: {
-          connect: { id: req.user.userid }
+          connect: { id: userId }
         }
       }
     });
@@ -81,8 +86,7 @@ router.post('/', verifyToken, async (req, res) => {
 });
 
 
-
-
+// Supprimer un objectif
 router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
   const objectifId = parseInt(req.params.id);
 
@@ -98,45 +102,197 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Ajout de commentaire - Version complète corrigée
 router.post('/:id/commentaires', verifyToken, async (req, res) => {
   const objectifId = parseInt(req.params.id);
   const { contenu } = req.body;
 
+  // Logs de débogage détaillés
+  console.log('=== DEBUG AJOUT COMMENTAIRE ===');
+  console.log('objectifId:', objectifId);
+  console.log('contenu:', contenu);
+  console.log('req.user:', req.user);
+  
+  // Vérifier si le token contient l'ID utilisateur
+  if (!req.user || (!req.user.id && !req.user.userid)) {
+    console.error('❌ Erreur: req.user ne contient pas d\'ID');
+    return res.status(403).json({ error: "Utilisateur non identifié correctement" });
+  }
+  
+  // Utiliser l'ID disponible (que ce soit id ou userid)
+  const userId = req.user.id || req.user.userid;
+  console.log('userId extrait:', userId);
+  
+  if (!contenu) {
+    return res.status(400).json({ error: "Le contenu du commentaire est requis" });
+  }
+
   try {
+    // Vérifiez d'abord que l'objectif existe
+    const objectif = await prisma.objectif.findUnique({
+      where: { id: objectifId }
+    });
+    
+    if (!objectif) {
+      console.error(`❌ Objectif ${objectifId} non trouvé`);
+      return res.status(404).json({ error: "Objectif non trouvé" });
+    }
+    
+    console.log('✅ Objectif trouvé, création du commentaire...');
+    
+    // Création du commentaire avec userId
     const commentaire = await prisma.commentaire.create({
       data: {
         contenu,
         objectif: { connect: { id: objectifId } },
-        user: { connect: { id: req.user.userid } }
+        user: { connect: { id: parseInt(userId) } }
+      },
+      include: {
+        user: { 
+          select: { 
+            id: true, 
+            username: true, 
+            role: true 
+          } 
+        }
       }
     });
-
-    res.status(201).json({ message: 'Commentaire ajouté', commentaire });
+    
+    console.log('✅ Commentaire créé avec succès:', commentaire.id);
+    
+    res.status(201).json(commentaire);
   } catch (error) {
-    console.error('💥 Erreur ajout commentaire multiple :', error);
-    res.status(400).json({ error: "Impossible d'ajouter le commentaire" });
+    console.error('❌ Erreur ajout commentaire:', error);
+    res.status(500).json({ 
+      error: "Impossible d'ajouter le commentaire", 
+      details: error.message,
+      stack: error.stack
+    });
   }
 });
 
+// Récupération des commentaires - Version corrigée
 router.get('/:id/commentaires', verifyToken, async (req, res) => {
   const objectifId = parseInt(req.params.id);
+  
+  console.log('=== DEBUG RÉCUPÉRATION COMMENTAIRES ===');
+  console.log('objectifId:', objectifId);
 
   try {
+    // Vérifier que l'objectif existe
+    const objectif = await prisma.objectif.findUnique({
+      where: { id: objectifId }
+    });
+    
+    if (!objectif) {
+      console.error(`❌ Objectif ${objectifId} non trouvé`);
+      return res.status(404).json({ error: "Objectif non trouvé" });
+    }
+    
+    // Récupérer les commentaires
     const commentaires = await prisma.commentaire.findMany({
       where: { objectifId },
       include: {
-        user: { select: { username: true, role: true } }
+        user: { 
+          select: { 
+            id: true, 
+            username: true, 
+            role: true 
+          } 
+        }
       },
       orderBy: { createdAt: 'desc' }
     });
-
+    
+    console.log(`✅ ${commentaires.length} commentaires récupérés`);
+    
     res.json(commentaires);
   } catch (error) {
-    console.error('💥 Erreur récupération commentaires :', error);
-    res.status(500).json({ error: "Impossible de récupérer les commentaires" });
+    console.error('❌ Erreur récupération commentaires:', error);
+    res.status(500).json({ 
+      error: "Impossible de récupérer les commentaires",
+      details: error.message 
+    });
   }
 });
 
+// Mise à jour d'un commentaire
+router.put('/commentaire/:id', verifyToken, async (req, res) => {
+  const commentId = parseInt(req.params.id);
+  const { contenu } = req.body;
+  const userId = req.user.id || req.user.userid;
+  
+  if (!userId) {
+    return res.status(403).json({ error: "Utilisateur non authentifié" });
+  }
+
+  try {
+    // Récupérer le commentaire pour vérifier les droits
+    const commentaire = await prisma.commentaire.findUnique({
+      where: { id: commentId },
+      include: { user: true }
+    });
+
+    if (!commentaire) {
+      return res.status(404).json({ error: "Commentaire non trouvé" });
+    }
+
+    // Vérifier si l'utilisateur est l'auteur ou un admin
+    if (commentaire.userid !== userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: "Non autorisé à modifier ce commentaire" });
+    }
+
+    // Mettre à jour le commentaire
+    const updatedCommentaire = await prisma.commentaire.update({
+      where: { id: commentId },
+      data: { contenu },
+      include: {
+        user: { select: { username: true, role: true } }
+      }
+    });
+
+    res.json(updatedCommentaire);
+  } catch (error) {
+    console.error('💥 Erreur mise à jour commentaire:', error);
+    res.status(500).json({ error: "Impossible de modifier le commentaire" });
+  }
+});
+
+// Suppression d'un commentaire
+router.delete('/commentaire/:id', verifyToken, async (req, res) => {
+  const commentId = parseInt(req.params.id);
+  const userId = req.user.id || req.user.userid;
+  
+  if (!userId) {
+    return res.status(403).json({ error: "Utilisateur non authentifié" });
+  }
+
+  try {
+    // Récupérer le commentaire pour vérifier les droits
+    const commentaire = await prisma.commentaire.findUnique({
+      where: { id: commentId }
+    });
+
+    if (!commentaire) {
+      return res.status(404).json({ error: "Commentaire non trouvé" });
+    }
+
+    // Vérifier si l'utilisateur est l'auteur ou un admin
+    if (commentaire.userid !== userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: "Non autorisé à supprimer ce commentaire" });
+    }
+
+    // Supprimer le commentaire
+    await prisma.commentaire.delete({
+      where: { id: commentId }
+    });
+
+    res.json({ message: "Commentaire supprimé avec succès" });
+  } catch (error) {
+    console.error('💥 Erreur suppression commentaire:', error);
+    res.status(500).json({ error: "Impossible de supprimer le commentaire" });
+  }
+});
 
 // 🔒 Mettre à jour le statut d'un objectif (consultant ou admin)
 router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
@@ -225,7 +381,7 @@ router.post('/admin/multiple', verifyToken, requireAdmin, async (req, res) => {
             description,
             status: "En cours",
             validatedbyadmin: false,
-            annee: annee || currentYear,
+            annee: parseInt(annee) || currentYear,
             user: { connect: { id: parseInt(userId) } }
           }
         })
@@ -238,7 +394,5 @@ router.post('/admin/multiple', verifyToken, requireAdmin, async (req, res) => {
     res.status(400).json({ error: "Erreur création des objectifs" });
   }
 });
-
-
 
 module.exports = router;
