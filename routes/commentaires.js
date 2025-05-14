@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const auth = require('../middleware/auth'); // Votre middleware d'authentification
+const authenticateToken = require('../middleware/authenticateToken'); // Assurez-vous que ce chemin est correct
 
 // Récupérer tous les commentaires d'un objectif
-router.get('/objectifs/:objectifId/commentaires', auth, async (req, res) => {
+router.get('/:objectifId/commentaires', authenticateToken, async (req, res) => {
   try {
     const { objectifId } = req.params;
     
@@ -35,11 +35,11 @@ router.get('/objectifs/:objectifId/commentaires', auth, async (req, res) => {
 });
 
 // Ajouter un commentaire à un objectif
-router.post('/objectifs/:objectifId/commentaires', auth, async (req, res) => {
+router.post('/:objectifId/commentaires', authenticateToken, async (req, res) => {
   try {
     const { objectifId } = req.params;
     const { contenu } = req.body;
-    const userId = req.user.id; // Supposons que votre middleware auth ajoute l'utilisateur à req
+    const userId = req.user.id;
     
     if (!contenu) {
       return res.status(400).json({ message: 'Le contenu du commentaire est requis' });
@@ -84,7 +84,7 @@ router.post('/objectifs/:objectifId/commentaires', auth, async (req, res) => {
 });
 
 // Modifier un commentaire
-router.put('/commentaires/:id', auth, async (req, res) => {
+router.put('/commentaire/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { contenu } = req.body;
@@ -94,17 +94,16 @@ router.put('/commentaires/:id', auth, async (req, res) => {
       return res.status(400).json({ message: 'Le contenu du commentaire est requis' });
     }
     
-    // Vérifier si le commentaire existe et appartient à l'utilisateur
+    // Vérifier si le commentaire existe
     const commentaire = await prisma.commentaire.findUnique({
-      where: { id: parseInt(id) },
-      include: { user: true }
+      where: { id: parseInt(id) }
     });
     
     if (!commentaire) {
       return res.status(404).json({ message: 'Commentaire non trouvé' });
     }
     
-    // Vérifier que l'utilisateur est le propriétaire du commentaire ou un admin
+    // Vérifier si l'utilisateur est autorisé à modifier ce commentaire
     if (commentaire.userid !== userId && req.user.role !== 'ADMIN') {
       return res.status(403).json({ message: 'Non autorisé à modifier ce commentaire' });
     }
@@ -132,22 +131,21 @@ router.put('/commentaires/:id', auth, async (req, res) => {
 });
 
 // Supprimer un commentaire
-router.delete('/commentaires/:id', auth, async (req, res) => {
+router.delete('/commentaire/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
     
-    // Vérifier si le commentaire existe et appartient à l'utilisateur
+    // Vérifier si le commentaire existe
     const commentaire = await prisma.commentaire.findUnique({
-      where: { id: parseInt(id) },
-      include: { user: true }
+      where: { id: parseInt(id) }
     });
     
     if (!commentaire) {
       return res.status(404).json({ message: 'Commentaire non trouvé' });
     }
     
-    // Vérifier que l'utilisateur est le propriétaire du commentaire ou un admin
+    // Vérifier si l'utilisateur est autorisé à supprimer ce commentaire
     if (commentaire.userid !== userId && req.user.role !== 'ADMIN') {
       return res.status(403).json({ message: 'Non autorisé à supprimer ce commentaire' });
     }
