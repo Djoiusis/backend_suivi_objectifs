@@ -12,7 +12,18 @@ function verifyToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // ➕ Ajoute les infos user dans req.user
+    
+    // Vérification du contenu du token pour déboguer
+    console.log('Contenu du token décodé:', decoded);
+    
+    // Normalement, le token contient déjà les bonnes propriétés si généré correctement
+    // Il n'y a pas besoin de renommer userid en id ou vice versa, tout dépend de comment
+    // le token a été généré dans auth.js
+    req.user = decoded;
+    
+    // Log pour déboguer
+    console.log('req.user défini:', req.user);
+    
     next();
   } catch (err) {
     console.error('Erreur de token JWT:', err);
