@@ -20,7 +20,7 @@ app.use(bodyParser.json());
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/objectifs', objectifsRoutes);
-app.use('/objectifs', commentairesRoutes); // Ajout des routes de commentaires
+app.use('/commentaires', commentairesRoutes); // Ajout des routes de commentaires
 
 // Test de connexion à la base de données
 prisma.$connect()
