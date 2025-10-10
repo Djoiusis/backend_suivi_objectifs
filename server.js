@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const objectifsRoutes = require('./routes/objectifs');
+const categoriesRoutes = require('./routes/categories');
 const commentairesRoutes = require('./routes/commentaires'); // Ajout des routes de commentaires
 const { PrismaClient } = require('@prisma/client');
 require('dotenv').config();
@@ -20,6 +21,7 @@ app.use(bodyParser.json());
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/objectifs', objectifsRoutes);
+app.use('/categories', categoriesRoutes);
 app.use('/objectifs', commentairesRoutes); // Ajout des routes de commentaires
 
 // Test de connexion à la base de données
