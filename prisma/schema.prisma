@@ -10,7 +10,7 @@ datasource db {
 model User {
   id        Int      @id @default(autoincrement())
   username  String   @unique
-  email     String   @unique  // NOUVEAU
+  email     String   @unique?  // NOUVEAU
   password  String
   role      Role     @default(CONSULTANT)
   isActive  Boolean  @default(false)  // NOUVEAU
