@@ -8,12 +8,15 @@ datasource db {
 }
 
 model User {
-  id        Int        @id @default(autoincrement())
-  username  String     @unique
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  email     String   @unique  // NOUVEAU
   password  String
-  role      Role       @default(CONSULTANT)
-  objectifs     Objectif[]
-  commentaires  Commentaire[]
+  role      Role     @default(CONSULTANT)
+  isActive  Boolean  @default(false)  // NOUVEAU
+  activationToken String? // NOUVEAU
+  objectifs Objectif[]
+  commentaires Commentaire[]
 }
 
 model Objectif {
