@@ -19,15 +19,28 @@ model User {
   commentaires Commentaire[]
 }
 
+model Categorie {
+  id          Int        @id @default(autoincrement())
+  nom         String     @unique
+  description String?
+  couleur     String?    // Pour l'affichage (ex: "#4f46e5")
+  objectifs   Objectif[]
+  createdAt   DateTime   @default(now())
+}
+
 model Objectif {
-  id               Int     @id @default(autoincrement())
-  description      String
-  status           String  @default("En cours")
-  validatedbyadmin Boolean @default(false)
-  annee            Int     @default(2025)  // Ajout de l'année avec valeur par défaut l'année courante
-  commentaires     Commentaire[]
-  user            User      @relation(fields: [userid], references: [id], onDelete: Cascade)
-  userid           Int
+  id                Int           @id @default(autoincrement())
+  description       String
+  status            String        @default("En cours")
+  validatedbyadmin  Boolean       @default(false)
+  annee             Int
+  categorieId       Int?          // NOUVEAU
+  categorie         Categorie?    @relation(fields: [categorieId], references: [id])
+  userid            Int
+  user              User          @relation(fields: [userid], references: [id], onDelete: Cascade)
+  commentaires      Commentaire[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 }
 
 model Commentaire {
