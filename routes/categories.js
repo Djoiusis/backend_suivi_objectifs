@@ -26,9 +26,9 @@ router.get('/', verifyToken, async (req, res) => {
 
 // ➕ Créer une catégorie (admin uniquement)
 router.post('/', verifyToken, requireAdmin, async (req, res) => {
-  const { nom, description, couleur, icone, ordre } = req.body;
+  const { nom, description, couleur, ordre } = req.body;
 
-  console.log('📝 Tentative création catégorie:', { nom, icone, couleur });
+  console.log('📝 Tentative création catégorie:', { nom, couleur, ordre });
 
   if (!nom) {
     return res.status(400).json({ error: 'Le nom est requis' });
@@ -44,7 +44,6 @@ router.post('/', verifyToken, requireAdmin, async (req, res) => {
         nom,
         description: description || null,
         couleur: couleur || randomColor,
-        icone: icone || '📌',
         ordre: ordre || 0
       }
     });
@@ -68,7 +67,7 @@ router.post('/', verifyToken, requireAdmin, async (req, res) => {
 // ✏️ Modifier une catégorie (admin uniquement)
 router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { nom, description, couleur, icone, ordre } = req.body;
+  const { nom, description, couleur, ordre } = req.body;
 
   try {
     const categorie = await prisma.categorie.update({
@@ -77,7 +76,6 @@ router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
         ...(nom && { nom }),
         ...(description !== undefined && { description }),
         ...(couleur && { couleur }),
-        ...(icone !== undefined && { icone }),
         ...(ordre !== undefined && { ordre })
       }
     });
