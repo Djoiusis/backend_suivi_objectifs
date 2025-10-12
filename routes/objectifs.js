@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 
 // Voir les objectifs de l'utilisateur connecté avec filtre par année
 router.get('/mine/:annee?', verifyToken, async (req, res) => {
-  console.log('🔐 Utilisateur connecté :', req.user);
+  console.log('🔍 Utilisateur connecté :', req.user);
   const annee = req.params.annee ? parseInt(req.params.annee) : new Date().getFullYear();
   
   try {
@@ -58,7 +58,7 @@ router.get('/:userId/:annee?', verifyToken, async (req, res) => {
 
 // 🔒 Ajouter un objectif (consultant connecté) avec année
 router.post('/', verifyToken, async (req, res) => {
-  const { description, annee } = req.body;
+  const { description, annee, categorieId } = req.body;
   const currentYear = new Date().getFullYear();
   const userId = req.user.id || req.user.userid;
 
@@ -75,7 +75,12 @@ router.post('/', verifyToken, async (req, res) => {
         annee: annee || currentYear,
         user: {
           connect: { id: userId }
-        }
+        },
+        ...(categorieId && {
+          categorie: {
+            connect: { id: parseInt(categorieId) }
+          }
+        })
       }
     });
     res.status(201).json(objectif);
@@ -336,10 +341,12 @@ router.patch('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// 🔒 Admin : créer un objectif pour un utilisateur donné avec année
+// 🔒 Admin : créer un objectif pour un utilisateur donné avec année ET categorieId
 router.post('/admin', verifyToken, requireAdmin, async (req, res) => {
-  const { description, userId, annee } = req.body;
+  const { description, userId, annee, categorieId } = req.body;
   const currentYear = new Date().getFullYear();
+
+  console.log('🎯 Admin création objectif:', { description, userId, annee, categorieId });
 
   if (!description || !userId) {
     return res.status(400).json({ error: "Champs 'description' et 'userId' requis" });
@@ -354,9 +361,16 @@ router.post('/admin', verifyToken, requireAdmin, async (req, res) => {
         annee: annee || currentYear,
         user: {
           connect: { id: parseInt(userId) }
-        }
+        },
+        ...(categorieId && {
+          categorie: {
+            connect: { id: parseInt(categorieId) }
+          }
+        })
       }
     });
+    
+    console.log('✅ Objectif créé:', objectif);
     res.status(201).json({ message: "Objectif créé pour le user", objectif });
   } catch (error) {
     console.error("💥 Erreur création objectif admin :", error);
@@ -366,7 +380,7 @@ router.post('/admin', verifyToken, requireAdmin, async (req, res) => {
 
 // 🔒 Admin : créer un objectif pour plusieurs utilisateurs avec année
 router.post('/admin/multiple', verifyToken, requireAdmin, async (req, res) => {
-  const { description, userIds, annee } = req.body;
+  const { description, userIds, annee, categorieId } = req.body;
   const currentYear = new Date().getFullYear();
 
   if (!description || !Array.isArray(userIds) || userIds.length === 0) {
@@ -382,7 +396,12 @@ router.post('/admin/multiple', verifyToken, requireAdmin, async (req, res) => {
             status: "En cours",
             validatedbyadmin: false,
             annee: parseInt(annee) || currentYear,
-            user: { connect: { id: parseInt(userId) } }
+            user: { connect: { id: parseInt(userId) } },
+            ...(categorieId && {
+              categorie: {
+                connect: { id: parseInt(categorieId) }
+              }
+            })
           }
         })
       )
