@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
-const requireBUM = require('../middleware/requireBUM');
+const requireBUM = require('../middlewares/requireBUM');
 
 const prisma = new PrismaClient();
 
