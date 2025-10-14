@@ -20,7 +20,7 @@ async function getUserFromToken(req, res) {
     
     // Récupérer l'utilisateur complet depuis la DB
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
+      where: { id: decoded.userid },
       select: {
         id: true,
         username: true,
