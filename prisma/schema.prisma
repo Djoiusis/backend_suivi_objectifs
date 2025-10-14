@@ -1,8 +1,3 @@
-// ============================================
-// Schéma Prisma avec ENUM Role (incluant BUM)
-// ============================================
-// À utiliser si vous gardez l'ENUM et ajoutez juste BUM
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,48 +7,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Enum pour les rôles (avec BUM ajouté)
-enum Role {
-  ADMIN
-  BUM          // 👈 Ajouté
-  CONSULTANT
+model User {
+  id              Int              @id @default(autoincrement())
+  username        String           @unique
+  password        String
+  role            Role             @default(CONSULTANT)
+  businessUnitId  Int?
+  bumId           Int?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  businessUnit    BusinessUnit?    @relation("BusinessUnitUsers", fields: [businessUnitId], references: [id])
+  bum             User?            @relation("BUMConsultants", fields: [bumId], references: [id])
+  consultants     User[]           @relation("BUMConsultants")
+  objectifs       Objectif[]
+  commentaires    Commentaire[]
 }
 
-// Table Business Unit
 model BusinessUnit {
   id          Int      @id @default(autoincrement())
   nom         String   @unique
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  users       User[]   @relation("BusinessUnitUsers")
-
-  @@map("BusinessUnit")
-}
-
-// Table User
-model User {
-  id             Int            @id @default(autoincrement())
-  username       String         @unique
-  password       String
-  role           Role           // 👈 ENUM avec BUM
-  businessUnitId Int?
-  bumId          Int?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-
-  businessUnit   BusinessUnit?  @relation("BusinessUnitUsers", fields: [businessUnitId], references: [id], onDelete: SetNull)
-  bum            User?          @relation("BUMToConsultants", fields: [bumId], references: [id], onDelete: SetNull)
-  consultants    User[]         @relation("BUMToConsultants")
   
-  objectifs      Objectif[]     @relation("UserObjectifs")
-  commentaires   Commentaire[]
-  categories     Categorie[]
-
-  @@index([businessUnitId])
-  @@index([bumId])
-  @@map("User")
+  users       User[]   @relation("BusinessUnitUsers")
 }
 
 model Categorie {
@@ -61,45 +39,40 @@ model Categorie {
   nom         String     @unique
   description String?
   couleur     String?
-  userId      Int        // ← CETTE LIGNE CAUSE LE PROBLÈME
-  user        User       @relation(...)
-  objectifs   Objectif[]
   createdAt   DateTime   @default(now())
+  
+  objectifs   Objectif[]
 }
 
 model Objectif {
-  id               Int           @id @default(autoincrement())
-  description      String
-  status           String        @default("En cours")
-  validatedbyadmin Boolean       @default(false)
-  annee            Int
-  userid           Int
-  categorieId      Int?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-
-  user             User          @relation("UserObjectifs", fields: [userid], references: [id], onDelete: Cascade)
-  categorie        Categorie?    @relation(fields: [categorieId], references: [id], onDelete: SetNull)
-  commentaires     Commentaire[]
-
-  @@index([userid])
-  @@index([annee])
-  @@index([categorieId])
-  @@map("Objectif")
+  id                Int           @id @default(autoincrement())
+  description       String
+  status            String        @default("En cours")
+  validatedbyadmin  Boolean       @default(false)
+  annee             Int
+  categorieId       Int?
+  userid            Int
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  categorie         Categorie?    @relation(fields: [categorieId], references: [id])
+  user              User          @relation(fields: [userid], references: [id], onDelete: Cascade)
+  commentaires      Commentaire[]
 }
 
 model Commentaire {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   contenu    String
   objectifId Int
   userid     Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  
+  objectif   Objectif  @relation(fields: [objectifId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userid], references: [id], onDelete: Cascade)
+}
 
-  objectif   Objectif @relation(fields: [objectifId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userid], references: [id], onDelete: Cascade)
-
-  @@index([objectifId])
-  @@index([userid])
-  @@map("Commentaire")
+enum Role {
+  ADMIN
+  BUM
+  CONSULTANT
 }
