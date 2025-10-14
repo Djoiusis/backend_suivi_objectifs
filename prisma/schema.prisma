@@ -58,18 +58,13 @@ model User {
 
 model Categorie {
   id          Int        @id @default(autoincrement())
-  nom         String
+  nom         String     @unique
   description String?
-  couleur     String     @default("#6366f1")
-  userId      Int?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  user        User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  couleur     String?
+  userId      Int        // ← CETTE LIGNE CAUSE LE PROBLÈME
+  user        User       @relation(...)
   objectifs   Objectif[]
-
-  @@unique([nom, userId])
-  @@map("Categorie")
+  createdAt   DateTime   @default(now())
 }
 
 model Objectif {
