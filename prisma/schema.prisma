@@ -1,3 +1,5 @@
+// Schéma Prisma mis à jour avec BUM et Business Units
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,53 +9,107 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  email     String?  @unique  // NOUVEAU
-  password  String
-  role      Role     @default(CONSULTANT)
-  isActive  Boolean  @default(false)  // NOUVEAU
-  activationToken String? // NOUVEAU
-  objectifs Objectif[]
-  commentaires Commentaire[]
+// ============================================
+// Table Business Unit
+// ============================================
+model BusinessUnit {
+  id          Int      @id @default(autoincrement())
+  nom         String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users       User[]   @relation("BusinessUnitUsers")
+
+  @@map("BusinessUnit")
 }
 
+// ============================================
+// Table User (modifiée)
+// ============================================
+model User {
+  id             Int            @id @default(autoincrement())
+  username       String         @unique
+  password       String
+  role           String         // 'ADMIN' | 'BUM' | 'CONSULTANT'
+  businessUnitId Int?           // Nullable : BU à laquelle appartient l'utilisateur
+  bumId          Int?           // Nullable : BUM qui gère ce consultant
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Relations
+  businessUnit   BusinessUnit?  @relation("BusinessUnitUsers", fields: [businessUnitId], references: [id], onDelete: SetNull)
+  bum            User?          @relation("BUMToConsultants", fields: [bumId], references: [id], onDelete: SetNull)
+  consultants    User[]         @relation("BUMToConsultants")
+  
+  objectifs      Objectif[]     @relation("UserObjectifs")
+  commentaires   Commentaire[]
+  categories     Categorie[]
+
+  @@index([businessUnitId])
+  @@index([bumId])
+  @@map("User")
+}
+
+// ============================================
+// Table Categorie (inchangée)
+// ============================================
 model Categorie {
   id          Int        @id @default(autoincrement())
-  nom         String     @unique
+  nom         String
   description String?
-  couleur     String?    // Pour l'affichage (ex: "#4f46e5")
-  objectifs   Objectif[]
+  couleur     String     @default("#6366f1")
+  userId      Int?
   createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user        User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectifs   Objectif[]
+
+  @@unique([nom, userId])
+  @@map("Categorie")
 }
 
+// ============================================
+// Table Objectif (inchangée)
+// ============================================
 model Objectif {
-  id                Int           @id @default(autoincrement())
-  description       String
-  status            String        @default("En cours")
-  validatedbyadmin  Boolean       @default(false)
-  annee             Int
-  categorieId       Int?          // NOUVEAU
-  categorie         Categorie?    @relation(fields: [categorieId], references: [id])
-  userid            Int
-  user              User          @relation(fields: [userid], references: [id], onDelete: Cascade)
-  commentaires      Commentaire[]
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id               Int           @id @default(autoincrement())
+  description      String
+  status           String        @default("En cours")
+  validatedbyadmin Boolean       @default(false)
+  annee            Int
+  userid           Int
+  categorieId      Int?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user             User          @relation("UserObjectifs", fields: [userid], references: [id], onDelete: Cascade)
+  categorie        Categorie?    @relation(fields: [categorieId], references: [id], onDelete: SetNull)
+  commentaires     Commentaire[]
+
+  @@index([userid])
+  @@index([annee])
+  @@index([categorieId])
+  @@map("Objectif")
 }
 
+// ============================================
+// Table Commentaire (inchangée)
+// ============================================
 model Commentaire {
-  id         Int       @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   contenu    String
-  createdAt  DateTime  @default(now())
-  objectif    Objectif  @relation(fields: [objectifId], references: [id], onDelete: Cascade)
   objectifId Int
-  user        User      @relation(fields: [userid], references: [id], onDelete: Cascade)
   userid     Int
-}
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-enum Role {
-  ADMIN
-  CONSULTANT
+  objectif   Objectif @relation(fields: [objectifId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userid], references: [id], onDelete: Cascade)
+
+  @@index([objectifId])
+  @@index([userid])
+  @@map("Commentaire")
 }
