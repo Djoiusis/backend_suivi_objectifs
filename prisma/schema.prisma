@@ -1,4 +1,7 @@
-// Schéma Prisma mis à jour avec BUM et Business Units
+// ============================================
+// Schéma Prisma avec ENUM Role (incluant BUM)
+// ============================================
+// À utiliser si vous gardez l'ENUM et ajoutez juste BUM
 
 generator client {
   provider = "prisma-client-js"
@@ -9,9 +12,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
+// Enum pour les rôles (avec BUM ajouté)
+enum Role {
+  ADMIN
+  BUM          // 👈 Ajouté
+  CONSULTANT
+}
+
 // Table Business Unit
-// ============================================
 model BusinessUnit {
   id          Int      @id @default(autoincrement())
   nom         String   @unique
@@ -19,26 +27,22 @@ model BusinessUnit {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
   users       User[]   @relation("BusinessUnitUsers")
 
   @@map("BusinessUnit")
 }
 
-// ============================================
-// Table User (modifiée)
-// ============================================
+// Table User
 model User {
   id             Int            @id @default(autoincrement())
   username       String         @unique
   password       String
-  role           String         // 'ADMIN' | 'BUM' | 'CONSULTANT'
-  businessUnitId Int?           // Nullable : BU à laquelle appartient l'utilisateur
-  bumId          Int?           // Nullable : BUM qui gère ce consultant
+  role           Role           // 👈 ENUM avec BUM
+  businessUnitId Int?
+  bumId          Int?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  // Relations
   businessUnit   BusinessUnit?  @relation("BusinessUnitUsers", fields: [businessUnitId], references: [id], onDelete: SetNull)
   bum            User?          @relation("BUMToConsultants", fields: [bumId], references: [id], onDelete: SetNull)
   consultants    User[]         @relation("BUMToConsultants")
@@ -52,9 +56,6 @@ model User {
   @@map("User")
 }
 
-// ============================================
-// Table Categorie (inchangée)
-// ============================================
 model Categorie {
   id          Int        @id @default(autoincrement())
   nom         String
@@ -71,9 +72,6 @@ model Categorie {
   @@map("Categorie")
 }
 
-// ============================================
-// Table Objectif (inchangée)
-// ============================================
 model Objectif {
   id               Int           @id @default(autoincrement())
   description      String
@@ -95,9 +93,6 @@ model Objectif {
   @@map("Objectif")
 }
 
-// ============================================
-// Table Commentaire (inchangée)
-// ============================================
 model Commentaire {
   id         Int      @id @default(autoincrement())
   contenu    String
