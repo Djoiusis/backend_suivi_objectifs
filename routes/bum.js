@@ -2,18 +2,59 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
-const verifyToken = require('../middlewares/verifyToken');
-const requireBUM = require('../middlewares/requireBUM');
+const jwt = require('jsonwebtoken');
 
 const prisma = new PrismaClient();
 
-// ⚠️ IMPORTANT : verifyToken DOIT s'exécuter sur TOUTES les routes
-router.use(verifyToken);
+// Helper : Récupérer l'utilisateur depuis le token
+async function getUserFromToken(req, res) {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      res.status(401).json({ error: 'Token manquant' });
+      return null;
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    
+    // Récupérer l'utilisateur complet depuis la DB
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        businessUnitId: true,
+        bumId: true
+      }
+    });
+
+    if (!user) {
+      res.status(404).json({ error: 'Utilisateur non trouvé' });
+      return null;
+    }
+
+    if (user.role !== 'BUM') {
+      res.status(403).json({ error: 'Accès réservé aux BUM' });
+      return null;
+    }
+
+    return user;
+  } catch (error) {
+    console.error('Erreur vérification token:', error);
+    res.status(401).json({ error: 'Token invalide' });
+    return null;
+  }
+}
 
 // ==================== GET STATISTIQUES BUM ====================
-router.get('/stats', requireBUM, async (req, res) => {
+router.get('/stats', async (req, res) => {
+  const user = await getUserFromToken(req, res);
+  if (!user) return; // Erreur déjà envoyée
+
   try {
-    const bumId = req.user.id;
+    const bumId = user.id;
 
     const consultants = await prisma.user.findMany({
       where: { bumId: bumId },
@@ -64,12 +105,13 @@ router.get('/stats', requireBUM, async (req, res) => {
 });
 
 // ==================== GET BUSINESS UNIT ====================
-router.get('/my-bu', requireBUM, async (req, res) => {
-  try {
-    const bumId = req.user.userId;
+router.get('/my-bu', async (req, res) => {
+  const user = await getUserFromToken(req, res);
+  if (!user) return;
 
+  try {
     const bum = await prisma.user.findUnique({
-      where: { id: bumId },
+      where: { id: user.id },
       include: {
         businessUnit: {
           include: {
@@ -97,13 +139,14 @@ router.get('/my-bu', requireBUM, async (req, res) => {
 });
 
 // ==================== GET CONSULTANTS ====================
-router.get('/consultants', requireBUM, async (req, res) => {
-  try {
-    const bumId = req.user.userId;
+router.get('/consultants', async (req, res) => {
+  const user = await getUserFromToken(req, res);
+  if (!user) return;
 
+  try {
     const consultants = await prisma.user.findMany({
       where: { 
-        bumId: bumId,
+        bumId: user.id,
         role: 'CONSULTANT'
       },
       select: {
@@ -146,12 +189,18 @@ router.get('/consultants', requireBUM, async (req, res) => {
 });
 
 // ==================== CREATE CONSULTANT ====================
-router.post('/consultants', requireBUM, async (req, res) => {
+router.post('/consultants', async (req, res) => {
+  const user = await getUserFromToken(req, res);
+  if (!user) return;
+
   try {
     const { username, password } = req.body;
-    const bumId = req.user.userId;
 
-    // Validation
+    console.log('📝 Création consultant par BUM:', user.username);
+    console.log('   - Nouveau username:', username);
+    console.log('   - BUM ID:', user.id);
+    console.log('   - Business Unit ID:', user.businessUnitId);
+
     if (!username || !password) {
       return res.status(400).json({ error: 'Username et password requis' });
     }
@@ -160,7 +209,6 @@ router.post('/consultants', requireBUM, async (req, res) => {
       return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères' });
     }
 
-    // Vérifier si le username existe déjà
     const existingUser = await prisma.user.findUnique({
       where: { username }
     });
@@ -169,27 +217,19 @@ router.post('/consultants', requireBUM, async (req, res) => {
       return res.status(400).json({ error: 'Ce username existe déjà' });
     }
 
-    // Récupérer la businessUnitId du BUM
-    const bum = await prisma.user.findUnique({
-      where: { id: bumId },
-      select: { businessUnitId: true }
-    });
-
-    if (!bum || !bum.businessUnitId) {
+    if (!user.businessUnitId) {
       return res.status(400).json({ error: 'BUM non associé à une Business Unit' });
     }
 
-    // Hacher le mot de passe
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Créer le consultant
     const newConsultant = await prisma.user.create({
       data: {
         username,
         password: hashedPassword,
         role: 'CONSULTANT',
-        businessUnitId: bum.businessUnitId,
-        bumId: bumId
+        businessUnitId: user.businessUnitId,
+        bumId: user.id
       },
       select: {
         id: true,
@@ -211,18 +251,22 @@ router.post('/consultants', requireBUM, async (req, res) => {
       }
     });
 
+    console.log('✅ Consultant créé:', newConsultant.username);
+
     res.status(201).json(newConsultant);
   } catch (error) {
-    console.error('Erreur création consultant:', error);
+    console.error('❌ Erreur création consultant:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
 // ==================== DELETE CONSULTANT ====================
-router.delete('/consultants/:id', requireBUM, async (req, res) => {
+router.delete('/consultants/:id', async (req, res) => {
+  const user = await getUserFromToken(req, res);
+  if (!user) return;
+
   try {
     const consultantId = parseInt(req.params.id);
-    const bumId = req.user.userId;
 
     if (isNaN(consultantId)) {
       return res.status(400).json({ error: 'ID invalide' });
@@ -232,6 +276,7 @@ router.delete('/consultants/:id', requireBUM, async (req, res) => {
       where: { id: consultantId },
       select: {
         id: true,
+        username: true,
         bumId: true,
         role: true
       }
@@ -241,7 +286,7 @@ router.delete('/consultants/:id', requireBUM, async (req, res) => {
       return res.status(404).json({ error: 'Consultant non trouvé' });
     }
 
-    if (consultant.bumId !== bumId) {
+    if (consultant.bumId !== user.id) {
       return res.status(403).json({ error: 'Vous ne pouvez supprimer que vos propres consultants' });
     }
 
@@ -253,9 +298,156 @@ router.delete('/consultants/:id', requireBUM, async (req, res) => {
       where: { id: consultantId }
     });
 
+    console.log('🗑️ Consultant supprimé:', consultant.username);
+
     res.json({ message: 'Consultant supprimé avec succès' });
   } catch (error) {
     console.error('Erreur suppression consultant:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ==================== GET OBJECTIFS D'UN CONSULTANT ====================
+router.get('/consultants/:id/objectifs', async (req, res) => {
+  const user = await getUserFromToken(req, res);
+  if (!user) return;
+
+  try {
+    const consultantId = parseInt(req.params.id);
+
+    if (isNaN(consultantId)) {
+      return res.status(400).json({ error: 'ID invalide' });
+    }
+
+    const consultant = await prisma.user.findUnique({
+      where: { id: consultantId },
+      select: {
+        id: true,
+        username: true,
+        bumId: true,
+        objectifs: {
+          include: {
+            categorie: {
+              select: {
+                id: true,
+                nom: true,
+                couleur: true
+              }
+            },
+            commentaires: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    role: true
+                  }
+                }
+              },
+              orderBy: {
+                createdAt: 'desc'
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        }
+      }
+    });
+
+    if (!consultant) {
+      return res.status(404).json({ error: 'Consultant non trouvé' });
+    }
+
+    if (consultant.bumId !== user.id) {
+      return res.status(403).json({ error: 'Vous ne pouvez voir que les objectifs de vos consultants' });
+    }
+
+    res.json({
+      consultant: {
+        id: consultant.id,
+        username: consultant.username
+      },
+      objectifs: consultant.objectifs
+    });
+  } catch (error) {
+    console.error('Erreur récupération objectifs consultant:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ==================== UPDATE OBJECTIF (Valider/Rejeter) ====================
+router.patch('/objectifs/:id', async (req, res) => {
+  const user = await getUserFromToken(req, res);
+  if (!user) return;
+
+  try {
+    const objectifId = parseInt(req.params.id);
+    const { validatedbyadmin, status, commentaire } = req.body;
+
+    if (isNaN(objectifId)) {
+      return res.status(400).json({ error: 'ID invalide' });
+    }
+
+    const objectif = await prisma.objectif.findUnique({
+      where: { id: objectifId },
+      include: {
+        user: {
+          select: {
+            bumId: true
+          }
+        }
+      }
+    });
+
+    if (!objectif) {
+      return res.status(404).json({ error: 'Objectif non trouvé' });
+    }
+
+    if (objectif.user.bumId !== user.id) {
+      return res.status(403).json({ error: 'Vous ne pouvez modifier que les objectifs de vos consultants' });
+    }
+
+    const updateData = {};
+    if (typeof validatedbyadmin !== 'undefined') {
+      updateData.validatedbyadmin = validatedbyadmin;
+    }
+    if (status) {
+      updateData.status = status;
+    }
+
+    const updatedObjectif = await prisma.objectif.update({
+      where: { id: objectifId },
+      data: updateData,
+      include: {
+        categorie: true,
+        commentaires: {
+          include: {
+            user: {
+              select: {
+                username: true,
+                role: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (commentaire) {
+      await prisma.commentaire.create({
+        data: {
+          contenu: commentaire,
+          objectifId: objectifId,
+          userid: user.id
+        }
+      });
+    }
+
+    res.json(updatedObjectif);
+  } catch (error) {
+    console.error('Erreur mise à jour objectif:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
