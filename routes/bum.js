@@ -1,19 +1,20 @@
-// routes/bum.js
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
+const verifyToken = require('../middlewares/verifyToken');
 const requireBUM = require('../middlewares/requireBUM');
 
 const prisma = new PrismaClient();
 
+// ⚠️ IMPORTANT : verifyToken DOIT s'exécuter sur TOUTES les routes
+router.use(verifyToken);
+
 // ==================== GET STATISTIQUES BUM ====================
-// GET /bum/stats - Récupérer les statistiques pour le dashboard
 router.get('/stats', requireBUM, async (req, res) => {
   try {
     const bumId = req.user.userId;
 
-    // Récupérer tous les consultants du BUM
     const consultants = await prisma.user.findMany({
       where: { bumId: bumId },
       include: {
@@ -27,7 +28,6 @@ router.get('/stats', requireBUM, async (req, res) => {
       }
     });
 
-    // Calculer les statistiques
     const totalConsultants = consultants.length;
     
     let totalObjectifs = 0;
@@ -64,7 +64,6 @@ router.get('/stats', requireBUM, async (req, res) => {
 });
 
 // ==================== GET BUSINESS UNIT ====================
-// GET /bum/my-bu - Récupérer la Business Unit du BUM
 router.get('/my-bu', requireBUM, async (req, res) => {
   try {
     const bumId = req.user.userId;
@@ -98,7 +97,6 @@ router.get('/my-bu', requireBUM, async (req, res) => {
 });
 
 // ==================== GET CONSULTANTS ====================
-// GET /bum/consultants - Récupérer tous les consultants du BUM
 router.get('/consultants', requireBUM, async (req, res) => {
   try {
     const bumId = req.user.userId;
@@ -148,7 +146,6 @@ router.get('/consultants', requireBUM, async (req, res) => {
 });
 
 // ==================== CREATE CONSULTANT ====================
-// POST /bum/consultants - Créer un nouveau consultant
 router.post('/consultants', requireBUM, async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -222,7 +219,6 @@ router.post('/consultants', requireBUM, async (req, res) => {
 });
 
 // ==================== DELETE CONSULTANT ====================
-// DELETE /bum/consultants/:id - Supprimer un consultant
 router.delete('/consultants/:id', requireBUM, async (req, res) => {
   try {
     const consultantId = parseInt(req.params.id);
@@ -232,7 +228,6 @@ router.delete('/consultants/:id', requireBUM, async (req, res) => {
       return res.status(400).json({ error: 'ID invalide' });
     }
 
-    // Vérifier que le consultant appartient bien à ce BUM
     const consultant = await prisma.user.findUnique({
       where: { id: consultantId },
       select: {
@@ -254,7 +249,6 @@ router.delete('/consultants/:id', requireBUM, async (req, res) => {
       return res.status(400).json({ error: 'Vous ne pouvez supprimer que des consultants' });
     }
 
-    // Supprimer le consultant (cascade supprimera les objectifs liés)
     await prisma.user.delete({
       where: { id: consultantId }
     });
@@ -262,153 +256,6 @@ router.delete('/consultants/:id', requireBUM, async (req, res) => {
     res.json({ message: 'Consultant supprimé avec succès' });
   } catch (error) {
     console.error('Erreur suppression consultant:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-// ==================== GET OBJECTIFS D'UN CONSULTANT ====================
-// GET /bum/consultants/:id/objectifs - Récupérer les objectifs d'un consultant spécifique
-router.get('/consultants/:id/objectifs', requireBUM, async (req, res) => {
-  try {
-    const consultantId = parseInt(req.params.id);
-    const bumId = req.user.userId;
-
-    if (isNaN(consultantId)) {
-      return res.status(400).json({ error: 'ID invalide' });
-    }
-
-    // Vérifier que le consultant appartient bien à ce BUM
-    const consultant = await prisma.user.findUnique({
-      where: { id: consultantId },
-      select: {
-        id: true,
-        username: true,
-        bumId: true,
-        objectifs: {
-          include: {
-            categorie: {
-              select: {
-                id: true,
-                nom: true,
-                couleur: true
-              }
-            },
-            commentaires: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    username: true,
-                    role: true
-                  }
-                }
-              },
-              orderBy: {
-                createdAt: 'desc'
-              }
-            }
-          },
-          orderBy: {
-            createdAt: 'desc'
-          }
-        }
-      }
-    });
-
-    if (!consultant) {
-      return res.status(404).json({ error: 'Consultant non trouvé' });
-    }
-
-    if (consultant.bumId !== bumId) {
-      return res.status(403).json({ error: 'Vous ne pouvez voir que les objectifs de vos consultants' });
-    }
-
-    res.json({
-      consultant: {
-        id: consultant.id,
-        username: consultant.username
-      },
-      objectifs: consultant.objectifs
-    });
-  } catch (error) {
-    console.error('Erreur récupération objectifs consultant:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-// ==================== UPDATE OBJECTIF (Valider/Rejeter) ====================
-// PATCH /bum/objectifs/:id - Valider ou commenter un objectif
-router.patch('/objectifs/:id', requireBUM, async (req, res) => {
-  try {
-    const objectifId = parseInt(req.params.id);
-    const bumId = req.user.userId;
-    const { validatedbyadmin, status, commentaire } = req.body;
-
-    if (isNaN(objectifId)) {
-      return res.status(400).json({ error: 'ID invalide' });
-    }
-
-    // Vérifier que l'objectif appartient à un consultant du BUM
-    const objectif = await prisma.objectif.findUnique({
-      where: { id: objectifId },
-      include: {
-        user: {
-          select: {
-            bumId: true
-          }
-        }
-      }
-    });
-
-    if (!objectif) {
-      return res.status(404).json({ error: 'Objectif non trouvé' });
-    }
-
-    if (objectif.user.bumId !== bumId) {
-      return res.status(403).json({ error: 'Vous ne pouvez modifier que les objectifs de vos consultants' });
-    }
-
-    // Mettre à jour l'objectif
-    const updateData = {};
-    if (typeof validatedbyadmin !== 'undefined') {
-      updateData.validatedbyadmin = validatedbyadmin;
-    }
-    if (status) {
-      updateData.status = status;
-    }
-
-    const updatedObjectif = await prisma.objectif.update({
-      where: { id: objectifId },
-      data: updateData,
-      include: {
-        categorie: true,
-        commentaires: {
-          include: {
-            user: {
-              select: {
-                username: true,
-                role: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    // Ajouter un commentaire si fourni
-    if (commentaire) {
-      await prisma.commentaire.create({
-        data: {
-          contenu: commentaire,
-          objectifId: objectifId,
-          userid: bumId
-        }
-      });
-    }
-
-    res.json(updatedObjectif);
-  } catch (error) {
-    console.error('Erreur mise à jour objectif:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
