@@ -13,7 +13,7 @@ router.use(verifyToken);
 // ==================== GET STATISTIQUES BUM ====================
 router.get('/stats', requireBUM, async (req, res) => {
   try {
-    const bumId = req.user.userId;
+    const bumId = req.user.id;
 
     const consultants = await prisma.user.findMany({
       where: { bumId: bumId },
