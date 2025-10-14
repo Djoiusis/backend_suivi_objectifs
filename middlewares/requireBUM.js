@@ -6,4 +6,5 @@ function requireBUM(req, res, next) {
   next();
 }
 
+
 module.exports = requireBUM;
