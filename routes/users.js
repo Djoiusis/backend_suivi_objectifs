@@ -1,58 +1,140 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcrypt');
-
-const verifyToken = require('../middlewares/verifyToken');
-const requireAdmin = require('../middlewares/requireAdmin');
-
 const router = express.Router();
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+const { verifyToken, requireAdmin, requireAdminOrBUM } = require('../middleware/auth');
+
 const prisma = new PrismaClient();
 
-// 🔒 Récupérer tous les utilisateurs (admin only)
+// Récupérer tous les utilisateurs (ADMIN seulement)
 router.get('/', verifyToken, requireAdmin, async (req, res) => {
-  const users = await prisma.user.findMany({
-    select: { id: true, username: true, role: true }
-  });
-  res.json(users);
-});
-
-// 🔒 Ajouter un utilisateur (admin only)
-router.post('/', verifyToken, requireAdmin, async (req, res) => {
-  const { username, password, role } = req.body;
-
   try {
-    const existingUser = await prisma.user.findUnique({ where: { username } });
-    if (existingUser) {
-      return res.status(400).json({ error: 'Utilisateur déjà existant' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = await prisma.user.create({
-      data: {
-        username,
-        password: hashedPassword,
-        role: role || 'CONSULTANT',
-      },
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        role: true,
+        businessUnit: true,
+        createdAt: true
+      }
     });
-
-    res.status(201).json({ id: user.id, username: user.username, role: user.role });
+    res.json(users);
   } catch (error) {
-    res.status(500).json({ error: 'Erreur lors de la création du compte' });
+    console.error('Erreur récupération users:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// 🔒 Supprimer un utilisateur (admin uniquement)
+// Récupérer les consultants de ma BU (BUM)
+router.get('/my-team', verifyToken, requireAdminOrBUM, async (req, res) => {
+  try {
+    const where = req.user.role === 'BUM' 
+      ? { businessUnit: req.user.businessUnit, role: 'CONSULTANT' }
+      : { role: 'CONSULTANT' };
+
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        role: true,
+        businessUnit: true,
+        createdAt: true
+      }
+    });
+    res.json(users);
+  } catch (error) {
+    console.error('Erreur récupération team:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Créer un utilisateur (ADMIN seulement)
+router.post('/', verifyToken, requireAdmin, async (req, res) => {
+  const { nom, prenom, email, password, role, businessUnit } = req.body;
+
+  if (!nom || !prenom || !email || !password) {
+    return res.status(400).json({ error: 'Tous les champs sont requis' });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({
+      data: {
+        nom,
+        prenom,
+        email,
+        password: hashedPassword,
+        role: role || 'CONSULTANT',
+        businessUnit
+      }
+    });
+
+    res.status(201).json({ 
+      message: 'Utilisateur créé',
+      user: {
+        id: user.id,
+        nom: user.nom,
+        prenom: user.prenom,
+        email: user.email,
+        role: user.role,
+        businessUnit: user.businessUnit
+      }
+    });
+  } catch (error) {
+    console.error('Erreur création user:', error);
+    res.status(400).json({ error: 'Erreur création utilisateur' });
+  }
+});
+
+// Mettre à jour un utilisateur (ADMIN seulement)
+router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { nom, prenom, email, role, businessUnit, password } = req.body;
+
+  try {
+    const data = { nom, prenom, email, role, businessUnit };
+    
+    if (password) {
+      data.password = await bcrypt.hash(password, 10);
+    }
+
+    const user = await prisma.user.update({
+      where: { id: parseInt(id) },
+      data,
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        role: true,
+        businessUnit: true
+      }
+    });
+
+    res.json({ message: 'Utilisateur mis à jour', user });
+  } catch (error) {
+    console.error('Erreur update user:', error);
+    res.status(400).json({ error: 'Erreur mise à jour' });
+  }
+});
+
+// Supprimer un utilisateur (ADMIN seulement)
 router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
-  const userId = parseInt(req.params.id);
+  const { id } = req.params;
+
   try {
     await prisma.user.delete({
-      where: { id: userId }
+      where: { id: parseInt(id) }
     });
-    res.json({ message: "Utilisateur supprimé avec succès" });
+    res.json({ message: 'Utilisateur supprimé' });
   } catch (error) {
-    console.error("💥 Erreur suppression user :", error);
-    res.status(400).json({ error: "Impossible de supprimer l'utilisateur" });
+    console.error('Erreur suppression user:', error);
+    res.status(400).json({ error: 'Erreur suppression' });
   }
 });
 
