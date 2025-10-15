@@ -36,6 +36,49 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
+// GET /mine/:year - Récupérer les objectifs du consultant connecté pour une année
+router.get('/mine/:year', verifyToken, async (req, res) => {
+  try {
+    const { year } = req.params;
+    const userId = req.user.userid;
+
+    console.log(`📋 Récupération objectifs pour user ${userId}, année ${year}`);
+
+    const objectifs = await prisma.objectif.findMany({
+      where: {
+        userid: userId,
+        annee: parseInt(year)
+      },
+      include: {
+        categorie: true,
+        commentaires: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                role: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    console.log(`✅ ${objectifs.length} objectif(s) trouvé(s)`);
+    res.json(objectifs);
+  } catch (error) {
+    console.error('❌ Erreur récupération objectifs:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Récupérer tous les objectifs (ADMIN) ou de mes consultants (BUM)
 router.get('/all', verifyToken, requireAdminOrBUM, async (req, res) => {
   const { annee } = req.query;
@@ -272,6 +315,26 @@ router.delete('/:id', verifyToken, requireAdminOrBUM, async (req, res) => {
   }
 });
 
+// Récupérer les commentaires d'un objectif
+router.get('/:id/commentaires', verifyToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const commentaires = await prisma.commentaire.findMany({
+      where: { objectifId: parseInt(id) },
+      include: {
+        user: { select: { id: true, username: true, role: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(commentaires);
+  } catch (error) {
+    console.error('Erreur récupération commentaires:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Ajouter un commentaire
 router.post('/:id/commentaires', verifyToken, async (req, res) => {
   const { id } = req.params;
@@ -293,10 +356,75 @@ router.post('/:id/commentaires', verifyToken, async (req, res) => {
       }
     });
 
-    res.status(201).json({ message: 'Commentaire ajouté', commentaire });
+    res.status(201).json(commentaire);
   } catch (error) {
     console.error('Erreur ajout commentaire:', error);
     res.status(400).json({ error: 'Erreur ajout commentaire' });
+  }
+});
+
+// Modifier un commentaire
+router.put('/commentaire/:id', verifyToken, async (req, res) => {
+  const { id } = req.params;
+  const { contenu } = req.body;
+
+  if (!contenu) {
+    return res.status(400).json({ error: 'Contenu requis' });
+  }
+
+  try {
+    const commentaire = await prisma.commentaire.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!commentaire) {
+      return res.status(404).json({ error: 'Commentaire non trouvé' });
+    }
+
+    if (commentaire.userid !== req.user.userid && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Non autorisé' });
+    }
+
+    const updated = await prisma.commentaire.update({
+      where: { id: parseInt(id) },
+      data: { contenu },
+      include: {
+        user: { select: { id: true, username: true, role: true } }
+      }
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Erreur modification commentaire:', error);
+    res.status(400).json({ error: 'Erreur modification' });
+  }
+});
+
+// Supprimer un commentaire
+router.delete('/commentaire/:id', verifyToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const commentaire = await prisma.commentaire.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!commentaire) {
+      return res.status(404).json({ error: 'Commentaire non trouvé' });
+    }
+
+    if (commentaire.userid !== req.user.userid && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Non autorisé' });
+    }
+
+    await prisma.commentaire.delete({
+      where: { id: parseInt(id) }
+    });
+
+    res.json({ message: 'Commentaire supprimé' });
+  } catch (error) {
+    console.error('Erreur suppression commentaire:', error);
+    res.status(400).json({ error: 'Erreur suppression' });
   }
 });
 
