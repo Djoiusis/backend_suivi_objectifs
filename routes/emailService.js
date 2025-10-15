@@ -39,6 +39,12 @@ async function sendWelcomeEmail(consultantEmail, username, password) {
                 <p><strong>Nom d'utilisateur :</strong> ${username}</p>
                 <p><strong>Mot de passe :</strong> ${password}</p>
               </div>
+
+              <div style="text-align: center;">
+                <a href="https://objectifs-consultants.talentaccess.ch/" class="button">
+                  🚀 Accéder à la plateforme
+                </a>
+              </div>
               
               <div class="info">
                 <p>📱 Vous pouvez maintenant vous connecter à l'application pour :</p>
