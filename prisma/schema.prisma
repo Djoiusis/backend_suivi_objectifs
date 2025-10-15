@@ -22,6 +22,7 @@ model User {
   consultants     User[]           @relation("BUMConsultants")
   objectifs       Objectif[]
   commentaires    Commentaire[]
+  categories      Categorie[]
 }
 
 model BusinessUnit {
@@ -36,12 +37,16 @@ model BusinessUnit {
 
 model Categorie {
   id          Int        @id @default(autoincrement())
-  nom         String     @unique
+  nom         String
   description String?
   couleur     String?
+  userid      Int?
   createdAt   DateTime   @default(now())
   
+  user        User?      @relation(fields: [userid], references: [id], onDelete: Cascade)
   objectifs   Objectif[]
+  
+  @@unique([nom, userid])
 }
 
 model Objectif {
