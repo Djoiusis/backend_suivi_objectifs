@@ -8,30 +8,15 @@ const prisma = new PrismaClient();
 // Récupérer les catégories (globales + personnelles du consultant)
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const categories = await prisma.categorie.findMany({
-      where: {
-        OR: [
-          { userid: null }, // Catégories globales
-          { userid: req.user.id } // Catégories personnelles
-        ]
-      },
-      include: {
-        user: { select: { id: true, username: true } },
-        _count: { select: { objectifs: true } }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(categories);
-  } catch (error) {
-    console.error('Erreur récupération catégories:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
+    const where = {
+      OR: [
+        { userid: null }, // Catégories globales
+        { userid: req.user.userid } // Catégories personnelles
+      ]
+    };
 
-// Récupérer toutes les catégories (ADMIN seulement)
-router.get('/all', verifyToken, requireAdmin, async (req, res) => {
-  try {
     const categories = await prisma.categorie.findMany({
+      where,
       include: {
         user: { select: { id: true, username: true } },
         _count: { select: { objectifs: true } }
@@ -49,19 +34,19 @@ router.get('/all', verifyToken, requireAdmin, async (req, res) => {
 router.post('/', verifyToken, async (req, res) => {
   const { nom, description, couleur, isGlobal } = req.body;
 
-  if (!nom) {
+  if (!nom || !nom.trim()) {
     return res.status(400).json({ error: 'Nom requis' });
   }
 
   try {
     // Seul ADMIN peut créer des catégories globales
-    const userid = (isGlobal && req.user.role === 'ADMIN') ? null : req.user.id;
+    const userid = (isGlobal && req.user.role === 'ADMIN') ? null : req.user.userid;
 
     const categorie = await prisma.categorie.create({
       data: {
-        nom,
-        description,
-        couleur,
+        nom: nom.trim(),
+        description: description || null,
+        couleur: couleur || null,
         userid
       }
     });
@@ -69,6 +54,9 @@ router.post('/', verifyToken, async (req, res) => {
     res.status(201).json({ message: 'Catégorie créée', categorie });
   } catch (error) {
     console.error('Erreur création catégorie:', error);
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Cette catégorie existe déjà' });
+    }
     res.status(400).json({ error: 'Erreur création catégorie' });
   }
 });
@@ -88,7 +76,7 @@ router.put('/:id', verifyToken, async (req, res) => {
     }
 
     // Vérifier les permissions
-    if (categorie.userid !== null && categorie.userid !== req.user.id && req.user.role !== 'ADMIN') {
+    if (categorie.userid !== null && categorie.userid !== req.user.userid && req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Non autorisé' });
     }
 
@@ -118,7 +106,7 @@ router.delete('/:id', verifyToken, async (req, res) => {
     }
 
     // Vérifier les permissions
-    if (categorie.userid !== null && categorie.userid !== req.user.id && req.user.role !== 'ADMIN') {
+    if (categorie.userid !== null && categorie.userid !== req.user.userid && req.user.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Non autorisé' });
     }
 
