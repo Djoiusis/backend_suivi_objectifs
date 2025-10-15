@@ -193,41 +193,49 @@ router.get('/consultants', async (req, res) => {
 router.post('/consultants', async (req, res) => {
   const user = await getUserFromToken(req, res);
   if (!user) return;
-
+  
   try {
-    const { username, password } = req.body;
-
+    const { username, password, email } = req.body;
+    
     console.log('📝 Création consultant par BUM:', user.username);
     console.log('   - Nouveau username:', username);
+    console.log('   - Email:', email);
     console.log('   - BUM ID:', user.id);
     console.log('   - Business Unit ID:', user.businessUnitId);
-
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username et password requis' });
+    
+    if (!username || !password || !email) {
+      return res.status(400).json({ error: 'Username, password et email requis' });
     }
-
+    
     if (password.length < 6) {
       return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères' });
     }
-
+    
+    // Validation basique de l'email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Email invalide' });
+    }
+    
     const existingUser = await prisma.user.findUnique({
       where: { username }
     });
-
+    
     if (existingUser) {
       return res.status(400).json({ error: 'Ce username existe déjà' });
     }
-
+    
     if (!user.businessUnitId) {
       return res.status(400).json({ error: 'BUM non associé à une Business Unit' });
     }
-
+    
     const hashedPassword = await bcrypt.hash(password, 10);
-
+    
     const newConsultant = await prisma.user.create({
       data: {
         username,
         password: hashedPassword,
+        email,
         role: 'CONSULTANT',
         businessUnitId: user.businessUnitId,
         bumId: user.id
@@ -235,6 +243,7 @@ router.post('/consultants', async (req, res) => {
       select: {
         id: true,
         username: true,
+        email: true,
         role: true,
         createdAt: true,
         businessUnit: {
@@ -251,10 +260,16 @@ router.post('/consultants', async (req, res) => {
         }
       }
     });
-
+    
     console.log('✅ Consultant créé:', newConsultant.username);
-
+    
+    // Envoyer l'email en arrière-plan (ne pas bloquer la réponse)
+    sendWelcomeEmail(email, username, password).catch(err => {
+      console.error('⚠️  Erreur envoi email (non bloquant):', err.message);
+    });
+    
     res.status(201).json(newConsultant);
+    
   } catch (error) {
     console.error('❌ Erreur création consultant:', error);
     res.status(500).json({ error: 'Erreur serveur' });
