@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { verifyToken, requireAdmin, requireAdminOrBUM } = require('./auth');
+
 const prisma = new PrismaClient();
 
 // Récupérer les objectifs du consultant connecté
@@ -45,11 +46,8 @@ router.get('/all', verifyToken, requireAdminOrBUM, async (req, res) => {
       where.annee = parseInt(annee);
     }
 
-    // Si BUM, filtrer par mes consultants
     if (req.user.role === 'BUM') {
-      where.user = {
-        bumId: req.user.id
-      };
+      where.user = { bumId: req.user.id };
     }
 
     const objectifs = await prisma.objectif.findMany({
@@ -90,7 +88,6 @@ router.post('/admin', verifyToken, requireAdminOrBUM, async (req, res) => {
   }
 
   try {
-    // Si BUM, vérifier que le user est un de ses consultants
     if (req.user.role === 'BUM') {
       const targetUser = await prisma.user.findUnique({
         where: { id: parseInt(userid) }
@@ -98,6 +95,20 @@ router.post('/admin', verifyToken, requireAdminOrBUM, async (req, res) => {
 
       if (!targetUser || targetUser.bumId !== req.user.id) {
         return res.status(403).json({ error: 'Vous ne pouvez créer des objectifs que pour vos consultants' });
+      }
+    }
+
+    if (categorieId) {
+      const categorie = await prisma.categorie.findUnique({
+        where: { id: parseInt(categorieId) }
+      });
+
+      if (!categorie) {
+        return res.status(404).json({ error: 'Catégorie non trouvée' });
+      }
+
+      if (categorie.userid !== null && categorie.userid !== parseInt(userid)) {
+        return res.status(403).json({ error: 'Catégorie invalide pour ce consultant' });
       }
     }
 
@@ -129,7 +140,6 @@ router.post('/admin/multiple', verifyToken, requireAdminOrBUM, async (req, res) 
   }
 
   try {
-    // Si BUM, vérifier que tous les users sont ses consultants
     if (req.user.role === 'BUM') {
       const targetUsers = await prisma.user.findMany({
         where: { id: { in: userIds.map(id => parseInt(id)) } }
@@ -178,7 +188,6 @@ router.put('/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ error: 'Objectif non trouvé' });
     }
 
-    // Vérifications de permissions
     const isOwner = objectif.userid === req.user.id;
     const isAdmin = req.user.role === 'ADMIN';
     const isBUMOfUser = req.user.role === 'BUM' && objectif.user.bumId === req.user.id;
@@ -187,7 +196,6 @@ router.put('/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ error: 'Non autorisé' });
     }
 
-    // Admin et BUM peuvent valider (BUM uniquement pour ses consultants)
     if (validatedbyadmin !== undefined) {
       if (req.user.role === 'CONSULTANT') {
         return res.status(403).json({ error: 'Seul un admin ou BUM peut valider' });
@@ -230,7 +238,6 @@ router.delete('/:id', verifyToken, requireAdminOrBUM, async (req, res) => {
       return res.status(404).json({ error: 'Objectif non trouvé' });
     }
 
-    // BUM peut supprimer seulement ses consultants
     if (req.user.role === 'BUM' && objectif.user.bumId !== req.user.id) {
       return res.status(403).json({ error: 'Non autorisé' });
     }
