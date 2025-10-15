@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 
 // Récupérer les objectifs du consultant connecté
 router.get('/', verifyToken, async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user.userid;
   const { annee } = req.query;
 
   try {
@@ -47,7 +47,7 @@ router.get('/all', verifyToken, requireAdminOrBUM, async (req, res) => {
     }
 
     if (req.user.role === 'BUM') {
-      where.user = { bumId: req.user.id };
+      where.user = { bumId: req.user.userid };
     }
 
     const objectifs = await prisma.objectif.findMany({
@@ -83,6 +83,8 @@ router.post('/admin', verifyToken, requireAdminOrBUM, async (req, res) => {
   const { description, userid, annee, categorieId } = req.body;
   const currentYear = new Date().getFullYear();
 
+  console.log('🎯 Création objectif:', { description, userid, annee, categorieId, role: req.user.role });
+
   if (!description || !userid) {
     return res.status(400).json({ error: "Champs 'description' et 'userid' requis" });
   }
@@ -93,7 +95,7 @@ router.post('/admin', verifyToken, requireAdminOrBUM, async (req, res) => {
         where: { id: parseInt(userid) }
       });
 
-      if (!targetUser || targetUser.bumId !== req.user.id) {
+      if (!targetUser || targetUser.bumId !== req.user.userid) {
         return res.status(403).json({ error: 'Vous ne pouvez créer des objectifs que pour vos consultants' });
       }
     }
@@ -123,6 +125,7 @@ router.post('/admin', verifyToken, requireAdminOrBUM, async (req, res) => {
       }
     });
     
+    console.log('✅ Objectif créé:', objectif);
     res.status(201).json({ message: "Objectif créé", objectif });
   } catch (error) {
     console.error("Erreur création objectif:", error);
@@ -145,7 +148,7 @@ router.post('/admin/multiple', verifyToken, requireAdminOrBUM, async (req, res) 
         where: { id: { in: userIds.map(id => parseInt(id)) } }
       });
 
-      const allMyConsultants = targetUsers.every(u => u.bumId === req.user.id);
+      const allMyConsultants = targetUsers.every(u => u.bumId === req.user.userid);
       if (!allMyConsultants) {
         return res.status(403).json({ error: 'Vous ne pouvez créer des objectifs que pour vos consultants' });
       }
@@ -188,9 +191,9 @@ router.put('/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ error: 'Objectif non trouvé' });
     }
 
-    const isOwner = objectif.userid === req.user.id;
+    const isOwner = objectif.userid === req.user.userid;
     const isAdmin = req.user.role === 'ADMIN';
-    const isBUMOfUser = req.user.role === 'BUM' && objectif.user.bumId === req.user.id;
+    const isBUMOfUser = req.user.role === 'BUM' && objectif.user.bumId === req.user.userid;
 
     if (!isOwner && !isAdmin && !isBUMOfUser) {
       return res.status(403).json({ error: 'Non autorisé' });
@@ -238,7 +241,7 @@ router.delete('/:id', verifyToken, requireAdminOrBUM, async (req, res) => {
       return res.status(404).json({ error: 'Objectif non trouvé' });
     }
 
-    if (req.user.role === 'BUM' && objectif.user.bumId !== req.user.id) {
+    if (req.user.role === 'BUM' && objectif.user.bumId !== req.user.userid) {
       return res.status(403).json({ error: 'Non autorisé' });
     }
 
@@ -267,7 +270,7 @@ router.post('/:id/commentaires', verifyToken, async (req, res) => {
       data: {
         contenu,
         objectifId: parseInt(id),
-        userid: req.user.id
+        userid: req.user.userid
       },
       include: {
         user: { select: { id: true, username: true, role: true } }
