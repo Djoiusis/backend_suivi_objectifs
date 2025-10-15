@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
 const { verifyToken, requireAdmin, requireAdminOrBUM } = require('../middleware/auth');
 
 const prisma = new PrismaClient();
@@ -61,11 +60,10 @@ router.post('/', verifyToken, requireAdmin, async (req, res) => {
   }
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
       data: {
         username,
-        password: hashedPassword,
+        password,
         role: role || 'CONSULTANT',
         businessUnitId: businessUnitId ? parseInt(businessUnitId) : null,
         bumId: bumId ? parseInt(bumId) : null
@@ -105,7 +103,7 @@ router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
     };
     
     if (password) {
-      data.password = await bcrypt.hash(password, 10);
+      data.password = password;
     }
 
     const user = await prisma.user.update({
