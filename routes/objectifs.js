@@ -188,9 +188,14 @@ router.put('/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ error: 'Non autorisé' });
     }
 
-    // Seul l'admin peut valider
-    if (validatedbyadmin !== undefined && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Seul un admin peut valider' });
+    // Admin et BUM peuvent valider (BUM uniquement pour ses consultants)
+    if (validatedbyadmin !== undefined) {
+      if (req.user.role === 'CONSULTANT') {
+        return res.status(403).json({ error: 'Seul un admin ou BUM peut valider' });
+      }
+      if (req.user.role === 'BUM' && !isBUMOfUser) {
+        return res.status(403).json({ error: 'Vous ne pouvez valider que les objectifs de vos consultants' });
+      }
     }
 
     const data = {};
