@@ -11,7 +11,7 @@ router.get('/', verifyToken, async (req, res) => {
   const { annee } = req.query;
 
   try {
-    const where = { userId };
+    const where = { userid: userId };
     if (annee) {
       where.annee = parseInt(annee);
     }
@@ -21,7 +21,9 @@ router.get('/', verifyToken, async (req, res) => {
       include: {
         categorie: true,
         commentaires: {
-          include: { user: { select: { nom: true, prenom: true, role: true } } }
+          include: { 
+            user: { select: { id: true, username: true, role: true } } 
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -34,7 +36,7 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-// Récupérer tous les objectifs (ADMIN) ou de ma BU (BUM)
+// Récupérer tous les objectifs (ADMIN) ou de mes consultants (BUM)
 router.get('/all', verifyToken, requireAdminOrBUM, async (req, res) => {
   const { annee } = req.query;
 
@@ -44,20 +46,29 @@ router.get('/all', verifyToken, requireAdminOrBUM, async (req, res) => {
       where.annee = parseInt(annee);
     }
 
-    // Si BUM, filtrer par businessUnit
+    // Si BUM, filtrer par mes consultants
     if (req.user.role === 'BUM') {
       where.user = {
-        businessUnit: req.user.businessUnit
+        bumId: req.user.id
       };
     }
 
     const objectifs = await prisma.objectif.findMany({
       where,
       include: {
-        user: { select: { id: true, nom: true, prenom: true, businessUnit: true } },
+        user: { 
+          select: { 
+            id: true, 
+            username: true, 
+            businessUnitId: true,
+            businessUnit: { select: { nom: true } }
+          } 
+        },
         categorie: true,
         commentaires: {
-          include: { user: { select: { nom: true, prenom: true, role: true } } }
+          include: { 
+            user: { select: { id: true, username: true, role: true } } 
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -72,22 +83,22 @@ router.get('/all', verifyToken, requireAdminOrBUM, async (req, res) => {
 
 // Créer un objectif pour un utilisateur (ADMIN ou BUM)
 router.post('/admin', verifyToken, requireAdminOrBUM, async (req, res) => {
-  const { description, userId, annee, categorieId } = req.body;
+  const { description, userid, annee, categorieId } = req.body;
   const currentYear = new Date().getFullYear();
 
-  if (!description || !userId) {
-    return res.status(400).json({ error: "Champs 'description' et 'userId' requis" });
+  if (!description || !userid) {
+    return res.status(400).json({ error: "Champs 'description' et 'userid' requis" });
   }
 
   try {
-    // Si BUM, vérifier que le user est dans sa BU
+    // Si BUM, vérifier que le user est un de ses consultants
     if (req.user.role === 'BUM') {
       const targetUser = await prisma.user.findUnique({
-        where: { id: parseInt(userId) }
+        where: { id: parseInt(userid) }
       });
 
-      if (!targetUser || targetUser.businessUnit !== req.user.businessUnit) {
-        return res.status(403).json({ error: 'Vous ne pouvez créer des objectifs que pour votre BU' });
+      if (!targetUser || targetUser.bumId !== req.user.id) {
+        return res.status(403).json({ error: 'Vous ne pouvez créer des objectifs que pour vos consultants' });
       }
     }
 
@@ -97,10 +108,8 @@ router.post('/admin', verifyToken, requireAdminOrBUM, async (req, res) => {
         status: "En cours",
         validatedbyadmin: false,
         annee: annee || currentYear,
-        user: { connect: { id: parseInt(userId) } },
-        ...(categorieId && {
-          categorie: { connect: { id: parseInt(categorieId) } }
-        })
+        userid: parseInt(userid),
+        categorieId: categorieId ? parseInt(categorieId) : null
       }
     });
     
@@ -121,30 +130,28 @@ router.post('/admin/multiple', verifyToken, requireAdminOrBUM, async (req, res) 
   }
 
   try {
-    // Si BUM, vérifier que tous les users sont dans sa BU
+    // Si BUM, vérifier que tous les users sont ses consultants
     if (req.user.role === 'BUM') {
       const targetUsers = await prisma.user.findMany({
         where: { id: { in: userIds.map(id => parseInt(id)) } }
       });
 
-      const allInBU = targetUsers.every(u => u.businessUnit === req.user.businessUnit);
-      if (!allInBU) {
-        return res.status(403).json({ error: 'Vous ne pouvez créer des objectifs que pour votre BU' });
+      const allMyConsultants = targetUsers.every(u => u.bumId === req.user.id);
+      if (!allMyConsultants) {
+        return res.status(403).json({ error: 'Vous ne pouvez créer des objectifs que pour vos consultants' });
       }
     }
 
     const objectifs = await Promise.all(
-      userIds.map(userId =>
+      userIds.map(userid =>
         prisma.objectif.create({
           data: {
             description,
             status: "En cours",
             validatedbyadmin: false,
             annee: parseInt(annee) || currentYear,
-            user: { connect: { id: parseInt(userId) } },
-            ...(categorieId && {
-              categorie: { connect: { id: parseInt(categorieId) } }
-            })
+            userid: parseInt(userid),
+            categorieId: categorieId ? parseInt(categorieId) : null
           }
         })
       )
@@ -173,9 +180,9 @@ router.put('/:id', verifyToken, async (req, res) => {
     }
 
     // Vérifications de permissions
-    const isOwner = objectif.userId === req.user.id;
+    const isOwner = objectif.userid === req.user.id;
     const isAdmin = req.user.role === 'ADMIN';
-    const isBUMOfUser = req.user.role === 'BUM' && objectif.user.businessUnit === req.user.businessUnit;
+    const isBUMOfUser = req.user.role === 'BUM' && objectif.user.bumId === req.user.id;
 
     if (!isOwner && !isAdmin && !isBUMOfUser) {
       return res.status(403).json({ error: 'Non autorisé' });
@@ -219,8 +226,8 @@ router.delete('/:id', verifyToken, requireAdminOrBUM, async (req, res) => {
       return res.status(404).json({ error: 'Objectif non trouvé' });
     }
 
-    // BUM peut supprimer seulement dans sa BU
-    if (req.user.role === 'BUM' && objectif.user.businessUnit !== req.user.businessUnit) {
+    // BUM peut supprimer seulement ses consultants
+    if (req.user.role === 'BUM' && objectif.user.bumId !== req.user.id) {
       return res.status(403).json({ error: 'Non autorisé' });
     }
 
@@ -248,11 +255,11 @@ router.post('/:id/commentaires', verifyToken, async (req, res) => {
     const commentaire = await prisma.commentaire.create({
       data: {
         contenu,
-        objectif: { connect: { id: parseInt(id) } },
-        user: { connect: { id: req.user.id } }
+        objectifId: parseInt(id),
+        userid: req.user.id
       },
       include: {
-        user: { select: { nom: true, prenom: true, role: true } }
+        user: { select: { id: true, username: true, role: true } }
       }
     });
 
