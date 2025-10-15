@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
-const { verifyToken, requireAdmin, requireAdminOrBUM } = require('../middleware/auth');
-
+const { verifyToken, requireAdmin, requireAdminOrBUM } = require('./auth');
 const prisma = new PrismaClient();
 
 // Récupérer les objectifs du consultant connecté
