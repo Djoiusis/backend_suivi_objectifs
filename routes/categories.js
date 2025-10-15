@@ -20,18 +20,30 @@ router.get('/', verifyToken, async (req, res) => {
   try {
     const { consultantId } = req.query;
     
-    const where = {
-      OR: [
-        { userid: null } // Catégories globales toujours visibles
-      ]
-    };
+    let where = {};
 
-    // Si un consultantId est fourni, ajouter ses catégories personnelles
     if (consultantId) {
-      where.OR.push({ userid: parseInt(consultantId) });
+      // Si consultantId fourni, ne montrer QUE les catégories globales + celles du consultant
+      where = {
+        OR: [
+          { userid: null },                    // Catégories globales
+          { userid: parseInt(consultantId) }   // Catégories du consultant spécifique
+        ]
+      };
+      console.log(`📂 Récupération catégories pour consultant ${consultantId}`);
     } else if (req.user.role === 'CONSULTANT') {
-      // Si c'est un consultant, ajouter ses propres catégories
-      where.OR.push({ userid: req.user.userid });
+      // Consultant connecté : ses catégories + globales
+      where = {
+        OR: [
+          { userid: null },
+          { userid: req.user.userid }
+        ]
+      };
+      console.log(`📂 Récupération catégories pour consultant connecté ${req.user.userid}`);
+    } else {
+      // ADMIN/BUM sans consultantId : toutes les catégories globales uniquement
+      where = { userid: null };
+      console.log('📂 Récupération catégories globales uniquement');
     }
 
     const categories = await prisma.categorie.findMany({
@@ -43,6 +55,7 @@ router.get('/', verifyToken, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
     
+    console.log(`✅ ${categories.length} catégorie(s) trouvée(s)`);
     res.json(categories);
   } catch (error) {
     console.error('Erreur récupération catégories:', error);
@@ -50,11 +63,16 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-// Créer une catégorie (globale par défaut pour BUM/ADMIN)
+// Créer une catégorie
 router.post('/', verifyToken, async (req, res) => {
   const { nom, description, couleur, consultantId } = req.body;
 
-  console.log('📝 Création catégorie:', { nom, description, couleur, consultantId, role: req.user.role });
+  console.log('📝 Création catégorie:', { 
+    nom, 
+    consultantId, 
+    role: req.user.role,
+    userId: req.user.userid 
+  });
 
   if (!nom || !nom.trim()) {
     return res.status(400).json({ error: 'Nom requis' });
@@ -71,8 +89,9 @@ router.post('/', verifyToken, async (req, res) => {
           where: { id: parseInt(consultantId) }
         });
         if (!consultant || consultant.bumId !== req.user.userid) {
-          return res.status(403).json({ error: 'Non autorisé' });
+          return res.status(403).json({ error: 'Non autorisé - ce consultant ne fait pas partie de votre équipe' });
         }
+        console.log(`✅ BUM autorisé à créer une catégorie pour le consultant ${consultant.username}`);
       }
       userid = parseInt(consultantId);
     } else if (req.user.role === 'CONSULTANT') {
@@ -90,12 +109,17 @@ router.post('/', verifyToken, async (req, res) => {
       }
     });
 
-    console.log('✅ Catégorie créée:', categorie);
+    console.log('✅ Catégorie créée:', { 
+      id: categorie.id, 
+      nom: categorie.nom, 
+      userid: categorie.userid 
+    });
+    
     res.status(201).json(categorie);
   } catch (error) {
     console.error('Erreur création catégorie:', error);
     if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'Cette catégorie existe déjà' });
+      return res.status(400).json({ error: 'Cette catégorie existe déjà pour cet utilisateur' });
     }
     res.status(400).json({ error: 'Erreur création catégorie' });
   }
