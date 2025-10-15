@@ -5,6 +5,16 @@ const { verifyToken, requireAdmin, requireAdminOrBUM } = require('./auth');
 
 const prisma = new PrismaClient();
 
+// Couleurs par défaut
+const DEFAULT_COLORS = [
+  '#3B82F6', '#10B981', '#F59E0B', '#EF4444', 
+  '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'
+];
+
+function getRandomColor() {
+  return DEFAULT_COLORS[Math.floor(Math.random() * DEFAULT_COLORS.length)];
+}
+
 // Récupérer les catégories (globales + personnelles du consultant)
 router.get('/', verifyToken, async (req, res) => {
   try {
@@ -34,6 +44,8 @@ router.get('/', verifyToken, async (req, res) => {
 router.post('/', verifyToken, async (req, res) => {
   const { nom, description, couleur, isGlobal } = req.body;
 
+  console.log('📝 Création catégorie:', { nom, description, couleur, isGlobal, role: req.user.role });
+
   if (!nom || !nom.trim()) {
     return res.status(400).json({ error: 'Nom requis' });
   }
@@ -45,12 +57,13 @@ router.post('/', verifyToken, async (req, res) => {
     const categorie = await prisma.categorie.create({
       data: {
         nom: nom.trim(),
-        description: description || null,
-        couleur: couleur || null,
+        description: description?.trim() || null,
+        couleur: couleur || getRandomColor(), // Couleur par défaut si non fournie
         userid
       }
     });
 
+    console.log('✅ Catégorie créée:', categorie);
     res.status(201).json({ message: 'Catégorie créée', categorie });
   } catch (error) {
     console.error('Erreur création catégorie:', error);
