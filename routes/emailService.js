@@ -59,7 +59,7 @@ async function sendWelcomeEmail(consultantEmail, username, password) {
       const payload = JSON.stringify({
         sender: {
           name: "Plateforme Objectifs",
-          email: "noreply@votre-domaine.com"
+          email: "admin@talentaccess.ch"
         },
         to: [
           {
