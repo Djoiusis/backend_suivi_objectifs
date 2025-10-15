@@ -78,6 +78,64 @@ router.get('/all', verifyToken, requireAdminOrBUM, async (req, res) => {
   }
 });
 
+// Mettre à jour un objectif (PATCH - utilisé par le frontend)
+router.patch('/:id', verifyToken, async (req, res) => {
+  const { id } = req.params;
+  const { description, status, categorieId, validatedbyadmin } = req.body;
+
+  try {
+    const objectif = await prisma.objectif.findUnique({
+      where: { id: parseInt(id) },
+      include: { user: true }
+    });
+
+    if (!objectif) {
+      return res.status(404).json({ error: 'Objectif non trouvé' });
+    }
+
+    const isOwner = objectif.userid === req.user.userid;
+    const isAdmin = req.user.role === 'ADMIN';
+    const isBUMOfUser = req.user.role === 'BUM' && objectif.user.bumId === req.user.userid;
+
+    if (!isOwner && !isAdmin && !isBUMOfUser) {
+      return res.status(403).json({ error: 'Non autorisé' });
+    }
+
+    if (validatedbyadmin !== undefined) {
+      if (req.user.role === 'CONSULTANT') {
+        return res.status(403).json({ error: 'Seul un admin ou BUM peut valider' });
+      }
+      if (req.user.role === 'BUM' && !isBUMOfUser) {
+        return res.status(403).json({ error: 'Vous ne pouvez valider que les objectifs de vos consultants' });
+      }
+    }
+
+    const data = {};
+    if (description !== undefined) data.description = description;
+    if (status !== undefined) data.status = status;
+    if (categorieId !== undefined) data.categorieId = categorieId ? parseInt(categorieId) : null;
+    if (validatedbyadmin !== undefined) data.validatedbyadmin = validatedbyadmin;
+
+    const updated = await prisma.objectif.update({
+      where: { id: parseInt(id) },
+      data,
+      include: { 
+        categorie: true,
+        commentaires: {
+          include: {
+            user: { select: { id: true, username: true, role: true } }
+          }
+        }
+      }
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Erreur update objectif:', error);
+    res.status(400).json({ error: 'Erreur mise à jour' });
+  }
+});
+
 // Créer un objectif pour un utilisateur (ADMIN ou BUM)
 router.post('/admin', verifyToken, requireAdminOrBUM, async (req, res) => {
   const { description, userId, userid, annee, categorieId } = req.body;
