@@ -30,7 +30,7 @@ router.get('/', verifyToken, requireAdmin, async (req, res) => {
 router.get('/my-team', verifyToken, requireAdminOrBUM, async (req, res) => {
   try {
     const where = req.user.role === 'BUM' 
-      ? { bumId: req.user.id, role: 'CONSULTANT' }
+      ? { bumId: req.user.userid, role: 'CONSULTANT' }
       : { role: 'CONSULTANT' };
 
     const users = await prisma.user.findMany({
