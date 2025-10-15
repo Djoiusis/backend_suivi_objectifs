@@ -12,12 +12,12 @@ router.get('/', verifyToken, requireAdmin, async (req, res) => {
     const users = await prisma.user.findMany({
       select: {
         id: true,
-        nom: true,
-        prenom: true,
-        email: true,
+        username: true,
         role: true,
-        businessUnit: true,
-        createdAt: true
+        businessUnitId: true,
+        bumId: true,
+        createdAt: true,
+        businessUnit: { select: { id: true, nom: true } }
       }
     });
     res.json(users);
@@ -31,19 +31,18 @@ router.get('/', verifyToken, requireAdmin, async (req, res) => {
 router.get('/my-team', verifyToken, requireAdminOrBUM, async (req, res) => {
   try {
     const where = req.user.role === 'BUM' 
-      ? { businessUnit: req.user.businessUnit, role: 'CONSULTANT' }
+      ? { bumId: req.user.id, role: 'CONSULTANT' }
       : { role: 'CONSULTANT' };
 
     const users = await prisma.user.findMany({
       where,
       select: {
         id: true,
-        nom: true,
-        prenom: true,
-        email: true,
+        username: true,
         role: true,
-        businessUnit: true,
-        createdAt: true
+        businessUnitId: true,
+        createdAt: true,
+        businessUnit: { select: { id: true, nom: true } }
       }
     });
     res.json(users);
@@ -55,22 +54,24 @@ router.get('/my-team', verifyToken, requireAdminOrBUM, async (req, res) => {
 
 // Créer un utilisateur (ADMIN seulement)
 router.post('/', verifyToken, requireAdmin, async (req, res) => {
-  const { nom, prenom, email, password, role, businessUnit } = req.body;
+  const { username, password, role, businessUnitId, bumId } = req.body;
 
-  if (!nom || !prenom || !email || !password) {
-    return res.status(400).json({ error: 'Tous les champs sont requis' });
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username et password requis' });
   }
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
       data: {
-        nom,
-        prenom,
-        email,
+        username,
         password: hashedPassword,
         role: role || 'CONSULTANT',
-        businessUnit
+        businessUnitId: businessUnitId ? parseInt(businessUnitId) : null,
+        bumId: bumId ? parseInt(bumId) : null
+      },
+      include: {
+        businessUnit: { select: { id: true, nom: true } }
       }
     });
 
@@ -78,10 +79,9 @@ router.post('/', verifyToken, requireAdmin, async (req, res) => {
       message: 'Utilisateur créé',
       user: {
         id: user.id,
-        nom: user.nom,
-        prenom: user.prenom,
-        email: user.email,
+        username: user.username,
         role: user.role,
+        businessUnitId: user.businessUnitId,
         businessUnit: user.businessUnit
       }
     });
@@ -94,10 +94,15 @@ router.post('/', verifyToken, requireAdmin, async (req, res) => {
 // Mettre à jour un utilisateur (ADMIN seulement)
 router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { nom, prenom, email, role, businessUnit, password } = req.body;
+  const { username, role, businessUnitId, bumId, password } = req.body;
 
   try {
-    const data = { nom, prenom, email, role, businessUnit };
+    const data = { 
+      username, 
+      role, 
+      businessUnitId: businessUnitId ? parseInt(businessUnitId) : null,
+      bumId: bumId ? parseInt(bumId) : null
+    };
     
     if (password) {
       data.password = await bcrypt.hash(password, 10);
@@ -106,13 +111,8 @@ router.put('/:id', verifyToken, requireAdmin, async (req, res) => {
     const user = await prisma.user.update({
       where: { id: parseInt(id) },
       data,
-      select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        email: true,
-        role: true,
-        businessUnit: true
+      include: {
+        businessUnit: { select: { id: true, nom: true } }
       }
     });
 
