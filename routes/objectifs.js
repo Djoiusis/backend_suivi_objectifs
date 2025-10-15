@@ -3,10 +3,18 @@ const { PrismaClient } = require('@prisma/client');
 
 const verifyToken = require('../middlewares/verifyToken');
 const requireAdmin = require('../middlewares/requireAdmin');
+const requireBUM = require('../middlewares/requireBUM');
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Middleware pour ADMIN ou BUM
+const requireAdminOrBUM = (req, res, next) => {
+  if (req.user.role !== 'ADMIN' && req.user.role !== 'BUM') {
+    return res.status(403).json({ error: 'Accès réservé aux administrateurs et BUM' });
+  }
+  next();
+};
 
 // Voir les objectifs de l'utilisateur connecté avec filtre par année
 router.get('/mine/:annee?', verifyToken, async (req, res) => {
@@ -27,7 +35,7 @@ router.get('/mine/:annee?', verifyToken, async (req, res) => {
   }
 });
 
-// 🔒 Admin : Voir les objectifs d'un utilisateur spécifique avec filtre par année
+// Voir les objectifs d'un utilisateur spécifique avec filtre par année
 router.get('/:userId/:annee?', verifyToken, async (req, res) => {
   const userId = parseInt(req.params.userId);
   const annee = req.params.annee ? parseInt(req.params.annee) : new Date().getFullYear();
@@ -55,8 +63,7 @@ router.get('/:userId/:annee?', verifyToken, async (req, res) => {
   }
 });
 
-
-// 🔒 Ajouter un objectif (consultant connecté) avec année
+// Ajouter un objectif (consultant connecté) avec année
 router.post('/', verifyToken, async (req, res) => {
   const { description, annee, categorieId } = req.body;
   const currentYear = new Date().getFullYear();
@@ -90,9 +97,8 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
-
-// Supprimer un objectif
-router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
+// Supprimer un objectif (ADMIN ou BUM)
+router.delete('/:id', verifyToken, requireAdminOrBUM, async (req, res) => {
   const objectifId = parseInt(req.params.id);
 
   try {
@@ -107,24 +113,21 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
-// Ajout de commentaire - Version complète corrigée
+// Ajout de commentaire (tous les utilisateurs authentifiés)
 router.post('/:id/commentaires', verifyToken, async (req, res) => {
   const objectifId = parseInt(req.params.id);
   const { contenu } = req.body;
 
-  // Logs de débogage détaillés
   console.log('=== DEBUG AJOUT COMMENTAIRE ===');
   console.log('objectifId:', objectifId);
   console.log('contenu:', contenu);
   console.log('req.user:', req.user);
   
-  // Vérifier si le token contient l'ID utilisateur
   if (!req.user || (!req.user.id && !req.user.userid)) {
     console.error('❌ Erreur: req.user ne contient pas d\'ID');
     return res.status(403).json({ error: "Utilisateur non identifié correctement" });
   }
   
-  // Utiliser l'ID disponible (que ce soit id ou userid)
   const userId = req.user.id || req.user.userid;
   console.log('userId extrait:', userId);
   
@@ -133,7 +136,6 @@ router.post('/:id/commentaires', verifyToken, async (req, res) => {
   }
 
   try {
-    // Vérifiez d'abord que l'objectif existe
     const objectif = await prisma.objectif.findUnique({
       where: { id: objectifId }
     });
@@ -145,7 +147,6 @@ router.post('/:id/commentaires', verifyToken, async (req, res) => {
     
     console.log('✅ Objectif trouvé, création du commentaire...');
     
-    // Création du commentaire avec userId
     const commentaire = await prisma.commentaire.create({
       data: {
         contenu,
@@ -170,13 +171,12 @@ router.post('/:id/commentaires', verifyToken, async (req, res) => {
     console.error('❌ Erreur ajout commentaire:', error);
     res.status(500).json({ 
       error: "Impossible d'ajouter le commentaire", 
-      details: error.message,
-      stack: error.stack
+      details: error.message
     });
   }
 });
 
-// Récupération des commentaires - Version corrigée
+// Récupération des commentaires
 router.get('/:id/commentaires', verifyToken, async (req, res) => {
   const objectifId = parseInt(req.params.id);
   
@@ -184,7 +184,6 @@ router.get('/:id/commentaires', verifyToken, async (req, res) => {
   console.log('objectifId:', objectifId);
 
   try {
-    // Vérifier que l'objectif existe
     const objectif = await prisma.objectif.findUnique({
       where: { id: objectifId }
     });
@@ -194,7 +193,6 @@ router.get('/:id/commentaires', verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Objectif non trouvé" });
     }
     
-    // Récupérer les commentaires
     const commentaires = await prisma.commentaire.findMany({
       where: { objectifId },
       include: {
@@ -221,7 +219,7 @@ router.get('/:id/commentaires', verifyToken, async (req, res) => {
   }
 });
 
-// Mise à jour d'un commentaire
+// Mise à jour d'un commentaire (auteur, ADMIN ou BUM)
 router.put('/commentaire/:id', verifyToken, async (req, res) => {
   const commentId = parseInt(req.params.id);
   const { contenu } = req.body;
@@ -232,7 +230,6 @@ router.put('/commentaire/:id', verifyToken, async (req, res) => {
   }
 
   try {
-    // Récupérer le commentaire pour vérifier les droits
     const commentaire = await prisma.commentaire.findUnique({
       where: { id: commentId },
       include: { user: true }
@@ -242,12 +239,11 @@ router.put('/commentaire/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Commentaire non trouvé" });
     }
 
-    // Vérifier si l'utilisateur est l'auteur ou un admin
-    if (commentaire.userid !== userId && req.user.role !== 'ADMIN') {
+    // Vérifier si l'utilisateur est l'auteur, admin ou BUM
+    if (commentaire.userid !== userId && req.user.role !== 'ADMIN' && req.user.role !== 'BUM') {
       return res.status(403).json({ error: "Non autorisé à modifier ce commentaire" });
     }
 
-    // Mettre à jour le commentaire
     const updatedCommentaire = await prisma.commentaire.update({
       where: { id: commentId },
       data: { contenu },
@@ -263,7 +259,7 @@ router.put('/commentaire/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Suppression d'un commentaire
+// Suppression d'un commentaire (auteur, ADMIN ou BUM)
 router.delete('/commentaire/:id', verifyToken, async (req, res) => {
   const commentId = parseInt(req.params.id);
   const userId = req.user.id || req.user.userid;
@@ -273,7 +269,6 @@ router.delete('/commentaire/:id', verifyToken, async (req, res) => {
   }
 
   try {
-    // Récupérer le commentaire pour vérifier les droits
     const commentaire = await prisma.commentaire.findUnique({
       where: { id: commentId }
     });
@@ -282,12 +277,11 @@ router.delete('/commentaire/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Commentaire non trouvé" });
     }
 
-    // Vérifier si l'utilisateur est l'auteur ou un admin
-    if (commentaire.userid !== userId && req.user.role !== 'ADMIN') {
+    // Vérifier si l'utilisateur est l'auteur, admin ou BUM
+    if (commentaire.userid !== userId && req.user.role !== 'ADMIN' && req.user.role !== 'BUM') {
       return res.status(403).json({ error: "Non autorisé à supprimer ce commentaire" });
     }
 
-    // Supprimer le commentaire
     await prisma.commentaire.delete({
       where: { id: commentId }
     });
@@ -299,8 +293,8 @@ router.delete('/commentaire/:id', verifyToken, async (req, res) => {
   }
 });
 
-// 🔒 Mettre à jour le statut d'un objectif (consultant ou admin)
-router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
+// Valider un objectif (ADMIN ou BUM)
+router.put('/:id/valider', verifyToken, requireAdminOrBUM, async (req, res) => {
   const objectifId = parseInt(req.params.id);
 
   try {
@@ -308,7 +302,7 @@ router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
       where: { id: objectifId },
       data: {
         validatedbyadmin: true,
-        status: 'Validé' // 👈 on met aussi à jour le statut ici
+        status: 'Validé'
       }
     });
 
@@ -319,7 +313,7 @@ router.put('/:id/valider', verifyToken, requireAdmin, async (req, res) => {
   }
 });
 
-// 🔒 Mettre à jour uniquement le statut d'un objectif (consultant ou admin)
+// Mettre à jour le statut d'un objectif (tous les utilisateurs authentifiés)
 router.patch('/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -341,12 +335,12 @@ router.patch('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// 🔒 Admin : créer un objectif pour un utilisateur donné avec année ET categorieId
-router.post('/admin', verifyToken, requireAdmin, async (req, res) => {
+// Créer un objectif pour un utilisateur (ADMIN ou BUM)
+router.post('/admin', verifyToken, requireAdminOrBUM, async (req, res) => {
   const { description, userId, annee, categorieId } = req.body;
   const currentYear = new Date().getFullYear();
 
-  console.log('🎯 Admin création objectif:', { description, userId, annee, categorieId });
+  console.log('🎯 Création objectif:', { description, userId, annee, categorieId });
 
   if (!description || !userId) {
     return res.status(400).json({ error: "Champs 'description' et 'userId' requis" });
@@ -373,13 +367,13 @@ router.post('/admin', verifyToken, requireAdmin, async (req, res) => {
     console.log('✅ Objectif créé:', objectif);
     res.status(201).json({ message: "Objectif créé pour le user", objectif });
   } catch (error) {
-    console.error("💥 Erreur création objectif admin :", error);
+    console.error("💥 Erreur création objectif :", error);
     res.status(400).json({ error: "Impossible de créer l'objectif" });
   }
 });
 
-// 🔒 Admin : créer un objectif pour plusieurs utilisateurs avec année
-router.post('/admin/multiple', verifyToken, requireAdmin, async (req, res) => {
+// Créer un objectif pour plusieurs utilisateurs (ADMIN ou BUM)
+router.post('/admin/multiple', verifyToken, requireAdminOrBUM, async (req, res) => {
   const { description, userIds, annee, categorieId } = req.body;
   const currentYear = new Date().getFullYear();
 
