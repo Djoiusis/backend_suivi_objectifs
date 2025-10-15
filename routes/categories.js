@@ -15,15 +15,24 @@ function getRandomColor() {
   return DEFAULT_COLORS[Math.floor(Math.random() * DEFAULT_COLORS.length)];
 }
 
-// Récupérer les catégories (globales + personnelles du consultant)
+// Récupérer les catégories (globales + pour un consultant spécifique)
 router.get('/', verifyToken, async (req, res) => {
   try {
+    const { consultantId } = req.query;
+    
     const where = {
       OR: [
-        { userid: null }, // Catégories globales
-        { userid: req.user.userid } // Catégories personnelles
+        { userid: null } // Catégories globales toujours visibles
       ]
     };
+
+    // Si un consultantId est fourni, ajouter ses catégories personnelles
+    if (consultantId) {
+      where.OR.push({ userid: parseInt(consultantId) });
+    } else if (req.user.role === 'CONSULTANT') {
+      // Si c'est un consultant, ajouter ses propres catégories
+      where.OR.push({ userid: req.user.userid });
+    }
 
     const categories = await prisma.categorie.findMany({
       where,
@@ -33,6 +42,7 @@ router.get('/', verifyToken, async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
+    
     res.json(categories);
   } catch (error) {
     console.error('Erreur récupération catégories:', error);
@@ -40,31 +50,48 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-// Créer une catégorie
+// Créer une catégorie (globale par défaut pour BUM/ADMIN)
 router.post('/', verifyToken, async (req, res) => {
-  const { nom, description, couleur, isGlobal } = req.body;
+  const { nom, description, couleur, consultantId } = req.body;
 
-  console.log('📝 Création catégorie:', { nom, description, couleur, isGlobal, role: req.user.role });
+  console.log('📝 Création catégorie:', { nom, description, couleur, consultantId, role: req.user.role });
 
   if (!nom || !nom.trim()) {
     return res.status(400).json({ error: 'Nom requis' });
   }
 
   try {
-    // Seul ADMIN peut créer des catégories globales
-    const userid = (isGlobal && req.user.role === 'ADMIN') ? null : req.user.userid;
+    let userid = null; // Par défaut globale
+
+    // Si consultantId fourni, créer pour ce consultant
+    if (consultantId) {
+      // Vérifier les permissions
+      if (req.user.role === 'BUM') {
+        const consultant = await prisma.user.findUnique({
+          where: { id: parseInt(consultantId) }
+        });
+        if (!consultant || consultant.bumId !== req.user.userid) {
+          return res.status(403).json({ error: 'Non autorisé' });
+        }
+      }
+      userid = parseInt(consultantId);
+    } else if (req.user.role === 'CONSULTANT') {
+      // Si consultant connecté sans consultantId, créer pour lui
+      userid = req.user.userid;
+    }
+    // Sinon reste null (globale) pour ADMIN/BUM
 
     const categorie = await prisma.categorie.create({
       data: {
         nom: nom.trim(),
         description: description?.trim() || null,
-        couleur: couleur || getRandomColor(), // Couleur par défaut si non fournie
+        couleur: couleur || getRandomColor(),
         userid
       }
     });
 
     console.log('✅ Catégorie créée:', categorie);
-    res.status(201).json({ message: 'Catégorie créée', categorie });
+    res.status(201).json(categorie);
   } catch (error) {
     console.error('Erreur création catégorie:', error);
     if (error.code === 'P2002') {
